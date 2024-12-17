@@ -68,8 +68,10 @@ fn players(player_count: Int) {
       ])
     3 ->
       sketch.class([
-        sketch.grid_template_areas([". . .", "p2 court p3", ". p1 ."]),
-        sketch.grid_template_columns("auto 1fr auto"),
+        sketch.grid_template_areas([
+          "p2 p2 p3 p3", "court court court court", ". p1 p1 .",
+        ]),
+        sketch.grid_template_columns("auto 1fr 1fr auto"),
         sketch.grid_template_rows("auto 1fr auto"),
       ])
     4 ->
@@ -80,14 +82,18 @@ fn players(player_count: Int) {
       ])
     5 ->
       sketch.class([
-        sketch.grid_template_areas(["p3 . p4", "p2 court p5", ". p1 ."]),
-        sketch.grid_template_columns("auto 1fr auto"),
+        sketch.grid_template_areas([
+          "p3 p3 p4 p4", "p2 court court p5", ". p1 p1 .",
+        ]),
+        sketch.grid_template_columns("auto 1fr 1fr auto"),
         sketch.grid_template_rows("auto 1fr auto"),
       ])
     6 ->
       sketch.class([
-        sketch.grid_template_areas(["p3 p4 p5", "p2 court p6", ". p1 ."]),
-        sketch.grid_template_columns("auto 1fr auto"),
+        sketch.grid_template_areas([
+          ". p3 p4 p5 .", "p2 court court court p6", ". p1 p1 p1 .",
+        ]),
+        sketch.grid_template_columns("auto 1fr 1fr 1fr auto"),
         sketch.grid_template_rows("auto 1fr auto"),
       ])
     // TODO: handle properly
