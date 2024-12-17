@@ -63,30 +63,30 @@ fn players(player_count: Int) {
   case player_count {
     2 ->
       sketch.class([
-        sketch.grid_template_areas([". p2 .", "cc cc cc", ". p1 ."]),
+        sketch.grid_template_areas([". p2 .", "court court court", ". p1 ."]),
         sketch.grid_template_rows("auto 1fr auto"),
       ])
     3 ->
       sketch.class([
-        sketch.grid_template_areas([". . .", "p2 cc p3", ". p1 ."]),
+        sketch.grid_template_areas([". . .", "p2 court p3", ". p1 ."]),
         sketch.grid_template_columns("auto 1fr auto"),
         sketch.grid_template_rows("auto 1fr auto"),
       ])
     4 ->
       sketch.class([
-        sketch.grid_template_areas([". p3 .", "p2 cc p4", ". p1 ."]),
+        sketch.grid_template_areas([". p3 .", "p2 court p4", ". p1 ."]),
         sketch.grid_template_columns("auto 1fr auto"),
         sketch.grid_template_rows("auto 1fr auto"),
       ])
     5 ->
       sketch.class([
-        sketch.grid_template_areas(["p3 . p4", "p2 cc p5", ". p1 ."]),
+        sketch.grid_template_areas(["p3 . p4", "p2 court p5", ". p1 ."]),
         sketch.grid_template_columns("auto 1fr auto"),
         sketch.grid_template_rows("auto 1fr auto"),
       ])
     6 ->
       sketch.class([
-        sketch.grid_template_areas(["p3 p4 p5", "p2 cc p6", ". p1 ."]),
+        sketch.grid_template_areas(["p3 p4 p5", "p2 court p6", ". p1 ."]),
         sketch.grid_template_columns("auto 1fr auto"),
         sketch.grid_template_rows("auto 1fr auto"),
       ])
@@ -96,7 +96,7 @@ fn players(player_count: Int) {
 }
 
 fn court_area() {
-  sketch.class([sketch.compose(center()), sketch.grid_area("cc")])
+  sketch.class([sketch.compose(center()), sketch.grid_area("court")])
 }
 
 fn player_area(number: Int) {
