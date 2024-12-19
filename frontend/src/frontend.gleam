@@ -1,5 +1,6 @@
 import gleam/int
 import gleam/list
+import gleam/string
 import lustre
 import lustre/effect.{type Effect}
 import sketch
@@ -63,37 +64,52 @@ fn players(player_count: Int) {
   case player_count {
     2 ->
       sketch.class([
-        sketch.grid_template_areas([". p2 .", "court court court", ". p1 ."]),
+        sketch.grid_template_areas([
+          ".  p2 p2 .",
+          repeat("court", 4),
+          ". p1 p1 .",
+        ]),
+        sketch.grid_template_columns(repeat("1fr", 4)),
         sketch.grid_template_rows("auto 1fr auto"),
       ])
     3 ->
       sketch.class([
         sketch.grid_template_areas([
-          "p2 p2 p3 p3", "court court court court", ". p1 p1 .",
+          "p2 p2 p3 p3",
+          repeat("court", 4),
+          ". p1 p1 .",
         ]),
-        sketch.grid_template_columns("auto 1fr 1fr auto"),
+        sketch.grid_template_columns(repeat("1fr", 4)),
         sketch.grid_template_rows("auto 1fr auto"),
       ])
     4 ->
       sketch.class([
-        sketch.grid_template_areas([". p3 .", "p2 court p4", ". p1 ."]),
-        sketch.grid_template_columns("auto 1fr auto"),
+        sketch.grid_template_areas([
+          "p2 p2 p3 p3 p4 p4",
+          repeat("court", 6),
+          ". . p1 p1 . .",
+        ]),
+        sketch.grid_template_columns(repeat("1fr", 6)),
         sketch.grid_template_rows("auto 1fr auto"),
       ])
     5 ->
       sketch.class([
         sketch.grid_template_areas([
-          "p3 p3 p4 p4", "p2 court court p5", ". p1 p1 .",
+          "p2 p2 p3 p3 p4 p4 p5 p5",
+          repeat("court", 8),
+          ". . . p1 p1 . . .",
         ]),
-        sketch.grid_template_columns("auto 1fr 1fr auto"),
+        sketch.grid_template_columns(repeat("1fr", 8)),
         sketch.grid_template_rows("auto 1fr auto"),
       ])
     6 ->
       sketch.class([
         sketch.grid_template_areas([
-          ". p3 p4 p5 .", "p2 court court court p6", ". p1 p1 p1 .",
+          "p2 p2 p3 p3 p4 p4 p5 p5 p6 p6",
+          repeat("court", 10),
+          ". . . . p1 p1 . . . .",
         ]),
-        sketch.grid_template_columns("auto 1fr 1fr 1fr auto"),
+        sketch.grid_template_columns(repeat("1fr", 10)),
         sketch.grid_template_rows("auto 1fr auto"),
       ])
     // TODO: handle properly
@@ -127,4 +143,9 @@ fn center() {
 
 fn border() {
   sketch.class([sketch.border_style("solid"), sketch.border_color("turquoise")])
+}
+
+fn repeat(item: String, times: Int) -> String {
+  list.repeat(item, times)
+  |> string.join(" ")
 }
