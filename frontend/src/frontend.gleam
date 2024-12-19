@@ -102,13 +102,18 @@ fn players(player_count: Int) {
 }
 
 fn court_area() {
-  sketch.class([sketch.compose(center()), sketch.grid_area("court")])
+  sketch.class([
+    sketch.grid_area("court"),
+    sketch.compose(center()),
+    sketch.compose(border()),
+  ])
 }
 
 fn player_area(number: Int) {
   sketch.class([
-    sketch.compose(center()),
     sketch.grid_area("p" <> int.to_string(number)),
+    sketch.compose(center()),
+    sketch.compose(border()),
   ])
 }
 
@@ -118,4 +123,8 @@ fn center() {
     sketch.justify_content("center"),
     sketch.align_items("center"),
   ])
+}
+
+fn border() {
+  sketch.class([sketch.border_style("solid"), sketch.border_color("turquoise")])
 }
