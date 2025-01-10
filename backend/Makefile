@@ -1,2 +1,4 @@
 run:
 	@gleam run
+clean:
+	@gleam clean
