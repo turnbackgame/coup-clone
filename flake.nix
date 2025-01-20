@@ -1,5 +1,5 @@
 {
-  description = "Gleam Fullstack Project";
+  description = "Coup";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
 
@@ -16,10 +16,10 @@
         in
         {
           default = pkgs.mkShell {
-            name = "gleam-fullstack-project";
+            name = "coup";
             shellHook = ''
               git config pull.rebase true
-              ${pkgs.neo-cowsay}/bin/cowsay -f sage "Gleam Fullstack Project"
+              ${pkgs.neo-cowsay}/bin/cowsay -f sage "Coup"
             '';
             buildInputs = with pkgs; [
               editorconfig-checker
