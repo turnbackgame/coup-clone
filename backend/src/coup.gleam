@@ -1,13 +1,14 @@
 import glanoid
+import gleam/bool
 import gleam/dict.{type Dict}
 import gleam/erlang/process.{type Subject}
 import gleam/function
-import gleam/json
 import gleam/list
 import gleam/option.{Some}
 import gleam/otp/actor
 import gleam/result
 import mist
+import shared/json
 
 const timeout = 100
 
@@ -35,39 +36,13 @@ pub fn new_player(name: String) -> Player {
   Player(name: name, subject: process.new_subject())
 }
 
-fn player_to_json(player: Player) {
-  json.object([#("name", json.string(player.name))])
-}
-
 pub type PlayerMessage {
-  PlayerJoinLobby(lobby: Lobby, players: List(Player))
-  PlayerLeaveLobby(lobby: Lobby, players: List(Player))
+  Send(String)
 }
 
-pub fn handle_player_message(
-  conn: mist.WebsocketConnection,
-  message: PlayerMessage,
-) {
-  case message {
-    PlayerJoinLobby(lobby, players) -> {
-      json.object([
-        #("type", json.string("player_join")),
-        #("lobby", lobby_to_json(lobby)),
-        #("players", json.array(players, player_to_json)),
-      ])
-      |> json.to_string
-      |> mist.send_text_frame(conn, _)
-    }
-    PlayerLeaveLobby(lobby, players) -> {
-      json.object([
-        #("type", json.string("player_leave")),
-        #("lobby", lobby_to_json(lobby)),
-        #("players", json.array(players, player_to_json)),
-      ])
-      |> json.to_string
-      |> mist.send_text_frame(conn, _)
-    }
-  }
+pub fn handle_player_message(conn: mist.WebsocketConnection, msg: PlayerMessage) {
+  let Send(buf) = msg
+  mist.send_text_frame(conn, buf)
 }
 
 pub type Lobby {
@@ -77,10 +52,6 @@ pub type Lobby {
 fn new_lobby() -> Lobby {
   let assert Ok(subject) = actor.start([], lobby_loop)
   Lobby(id: ID(generator(id_length)), subject: subject)
-}
-
-fn lobby_to_json(lobby: Lobby) {
-  json.object([#("id", json.string(lobby.id.string))])
 }
 
 pub type LobbyMessage {
@@ -96,9 +67,18 @@ fn lobby_loop(message: LobbyMessage, players: List(Player)) {
       players
       |> function.tap(
         list.each(_, fn(player) {
+          let lobby = json.Lobby(id: lobby.id.string)
+          let players =
+            players
+            |> list.reverse
+            |> list.map(fn(player) { json.Player(name: player.name) })
+
           actor.send(
             player.subject,
-            PlayerJoinLobby(lobby, players |> list.reverse),
+            json.PlayerJoinedLobby(lobby:, players:)
+              |> json.encode_player_message
+              |> json.to_string
+              |> Send,
           )
         }),
       )
@@ -107,20 +87,26 @@ fn lobby_loop(message: LobbyMessage, players: List(Player)) {
     Leave(lobby, player) -> {
       let players = list.filter(players, fn(p) { p != player })
 
-      case list.is_empty(players) {
-        True -> actor.Stop(process.Normal)
-        False ->
-          players
-          |> function.tap(
-            list.each(_, fn(player) {
-              actor.send(
-                player.subject,
-                PlayerLeaveLobby(lobby, players |> list.reverse),
-              )
-            }),
+      use <- bool.guard(list.is_empty(players), actor.Stop(process.Normal))
+      players
+      |> function.tap(
+        list.each(_, fn(player) {
+          let lobby = json.Lobby(id: lobby.id.string)
+          let players =
+            players
+            |> list.reverse
+            |> list.map(fn(player) { json.Player(name: player.name) })
+
+          actor.send(
+            player.subject,
+            json.PlayerJoinedLobby(lobby:, players:)
+              |> json.encode_player_message
+              |> json.to_string
+              |> Send,
           )
-          |> actor.continue
-      }
+        }),
+      )
+      |> actor.continue
     }
   }
 }
