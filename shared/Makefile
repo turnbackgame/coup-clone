@@ -1,3 +1,5 @@
+build:
+	@gleam build
 run:
 	@gleam run
 clean:
