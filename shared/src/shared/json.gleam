@@ -1,6 +1,10 @@
 import gleam/dynamic/decode
 import gleam/json
 
+pub fn to_string(buf: json.Json) -> String {
+  json.to_string(buf)
+}
+
 pub type Lobby {
   Lobby(id: String)
 }
