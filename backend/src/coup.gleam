@@ -7,8 +7,8 @@ import gleam/list
 import gleam/option.{Some}
 import gleam/otp/actor
 import gleam/result
+import json/message
 import mist
-import shared/json
 
 const timeout = 100
 
@@ -67,17 +67,17 @@ fn lobby_loop(message: LobbyMessage, players: List(Player)) {
       players
       |> function.tap(
         list.each(_, fn(player) {
-          let lobby = json.Lobby(id: lobby.id.string)
+          let lobby = message.Lobby(id: lobby.id.string)
           let players =
             players
             |> list.reverse
-            |> list.map(fn(player) { json.Player(name: player.name) })
+            |> list.map(fn(player) { message.Player(name: player.name) })
 
           actor.send(
             player.subject,
-            json.PlayerJoinedLobby(lobby:, players:)
-              |> json.encode_player_message
-              |> json.to_string
+            message.PlayerJoinedLobby(lobby:, players:)
+              |> message.encode_player_message
+              |> message.to_string
               |> Send,
           )
         }),
@@ -91,17 +91,17 @@ fn lobby_loop(message: LobbyMessage, players: List(Player)) {
       players
       |> function.tap(
         list.each(_, fn(player) {
-          let lobby = json.Lobby(id: lobby.id.string)
+          let lobby = message.Lobby(id: lobby.id.string)
           let players =
             players
             |> list.reverse
-            |> list.map(fn(player) { json.Player(name: player.name) })
+            |> list.map(fn(player) { message.Player(name: player.name) })
 
           actor.send(
             player.subject,
-            json.PlayerJoinedLobby(lobby:, players:)
-              |> json.encode_player_message
-              |> json.to_string
+            message.PlayerJoinedLobby(lobby:, players:)
+              |> message.encode_player_message
+              |> message.to_string
               |> Send,
           )
         }),
