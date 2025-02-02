@@ -4,9 +4,10 @@ import gleam/dict.{type Dict}
 import gleam/erlang/process.{type Subject}
 import gleam/function
 import gleam/list
-import gleam/option.{Some}
+import gleam/option.{type Option, None, Some}
 import gleam/otp/actor
-import gleam/result
+import json/game_message
+import json/lobby_message
 import json/message
 import mist
 
@@ -25,7 +26,7 @@ pub fn generator(n: Int) -> String {
 }
 
 pub type Player {
-  Player(name: String, subject: Subject(PlayerMessage))
+  Player(subject: Subject(PlayerMessage), name: String)
 }
 
 pub fn new_player(name: String) -> Player {
@@ -33,7 +34,7 @@ pub fn new_player(name: String) -> Player {
     "" -> "player-" <> generator(5)
     _ -> name
   }
-  Player(name: name, subject: process.new_subject())
+  Player(subject: process.new_subject(), name:)
 }
 
 pub type PlayerMessage {
@@ -45,82 +46,177 @@ pub fn handle_player_message(conn: mist.WebsocketConnection, msg: PlayerMessage)
   mist.send_text_frame(conn, buf)
 }
 
-pub type Lobby {
-  Lobby(id: ID, subject: Subject(LobbyMessage))
+pub type Room {
+  Room(subject: Subject(RoomMessage))
 }
 
-fn new_lobby() -> Lobby {
-  let assert Ok(subject) = actor.start([], lobby_loop)
-  Lobby(id: ID(generator(id_length)), subject: subject)
+pub type RoomState {
+  RoomState(id: ID, lobby: Lobby, game: Option(Game))
+}
+
+pub type RoomMessage {
+  LobbyMessage(LobbyMessage)
+  StartGame
+  GameMessage(GameMessage)
+}
+
+pub type Lobby {
+  Lobby(id: ID, players: List(Player))
 }
 
 pub type LobbyMessage {
-  Join(lobby: Lobby, player: Player)
-  Leave(lobby: Lobby, player: Player)
+  JoinLobby(player: Player)
+  LeaveLobby(player: Player)
 }
 
-fn lobby_loop(message: LobbyMessage, players: List(Player)) {
+pub type Game {
+  Game(id: ID, players: List(Player))
+}
+
+pub type GameMessage {
+  TODO
+}
+
+pub fn join_lobby(room: Room, player: Player) {
+  actor.send(room.subject, LobbyMessage(JoinLobby(player)))
+}
+
+pub fn leave_lobby(room: Room, player: Player) {
+  actor.send(room.subject, LobbyMessage(LeaveLobby(player)))
+}
+
+pub fn start_game(room: Room) {
+  actor.send(room.subject, StartGame)
+}
+
+fn room_loop(
+  message: RoomMessage,
+  state: RoomState,
+) -> actor.Next(RoomMessage, RoomState) {
   case message {
-    Join(lobby, player) -> {
-      let players = [player, ..players]
-
-      players
-      |> function.tap(
-        list.each(_, fn(player) {
-          let lobby = message.Lobby(id: lobby.id.string)
-          let players =
-            players
-            |> list.reverse
-            |> list.map(fn(player) { message.Player(name: player.name) })
-
-          actor.send(
-            player.subject,
-            message.PlayerJoinedLobby(lobby:, players:)
-              |> message.encode_player_message
-              |> message.to_string
-              |> Send,
-          )
-        }),
+    LobbyMessage(lobby_message) -> {
+      let lobby = handle_lobby_message(lobby_message, state.lobby)
+      use <- bool.guard(
+        list.is_empty(lobby.players),
+        actor.Stop(process.Normal),
       )
-      |> actor.continue
+      actor.continue(RoomState(..state, lobby:))
     }
-    Leave(lobby, player) -> {
-      let players = list.filter(players, fn(p) { p != player })
 
-      use <- bool.guard(list.is_empty(players), actor.Stop(process.Normal))
-      players
-      |> function.tap(
-        list.each(_, fn(player) {
-          let lobby = message.Lobby(id: lobby.id.string)
-          let players =
-            players
-            |> list.reverse
-            |> list.map(fn(player) { message.Player(name: player.name) })
+    StartGame -> {
+      case state.game {
+        Some(_) -> todo as "handle starting an already started game"
+        None -> {
+          case list.length(state.lobby.players) {
+            player_count if player_count < 2 ->
+              todo as "handle starting the game with not enough players"
+            _ -> {
+              let game = Game(id: state.id, players: state.lobby.players)
 
-          actor.send(
-            player.subject,
-            message.PlayerJoinedLobby(lobby:, players:)
-              |> message.encode_player_message
-              |> message.to_string
-              |> Send,
-          )
-        }),
-      )
-      |> actor.continue
+              game.players
+              |> list.each(fn(player) {
+                let game_init =
+                  game_message.Init(
+                    game: game_message.Game(id: game.id.string),
+                    player: game_message.Player(name: player.name),
+                    players: game.players
+                      |> list.prepend(player)
+                      |> list.reverse
+                      |> list.map(fn(player) {
+                        game_message.Player(name: player.name)
+                      }),
+                  )
+                  |> message.GameEvent
+                  |> message.encode_event
+                  |> Send
+                actor.send(player.subject, game_init)
+              })
+
+              actor.continue(RoomState(..state, game: Some(game)))
+            }
+          }
+        }
+      }
+    }
+
+    GameMessage(game_message) -> {
+      case state.game {
+        None -> {
+          todo as "handle game message when no game is started"
+        }
+        Some(game) -> {
+          let game = handle_game_message(game_message, game)
+          actor.continue(RoomState(..state, game: Some(game)))
+        }
+      }
     }
   }
 }
 
-pub fn join_lobby(lobby: Lobby, player: Player) {
-  actor.send(lobby.subject, Join(lobby, player))
+fn handle_lobby_message(message: LobbyMessage, lobby: Lobby) -> Lobby {
+  case message {
+    JoinLobby(player) -> {
+      let lobby_init =
+        lobby_message.Init(
+          lobby: lobby_message.Lobby(id: lobby.id.string),
+          player: lobby_message.Player(name: player.name),
+          players: lobby.players
+            |> list.prepend(player)
+            |> list.reverse
+            |> list.map(fn(player) { lobby_message.Player(name: player.name) }),
+        )
+        |> message.LobbyEvent
+        |> message.encode_event
+        |> Send
+      actor.send(player.subject, lobby_init)
+
+      let lobby_updated =
+        lobby_message.PlayersUpdated(
+          players: lobby.players
+          |> list.prepend(player)
+          |> list.reverse
+          |> list.map(fn(player) { lobby_message.Player(name: player.name) }),
+        )
+        |> message.LobbyEvent
+        |> message.encode_event
+        |> Send
+      lobby.players
+      |> list.each(fn(player) { actor.send(player.subject, lobby_updated) })
+
+      let players =
+        lobby.players
+        |> list.prepend(player)
+      Lobby(..lobby, players:)
+    }
+
+    LeaveLobby(player) -> {
+      let players = list.filter(lobby.players, fn(p) { p != player })
+
+      use <- bool.guard(list.is_empty(lobby.players), lobby)
+
+      let lobby_updated =
+        lobby_message.PlayersUpdated(
+          players: players
+          |> list.reverse
+          |> list.map(fn(player) { lobby_message.Player(name: player.name) }),
+        )
+        |> message.LobbyEvent
+        |> message.encode_event
+        |> Send
+      players
+      |> list.each(fn(player) { actor.send(player.subject, lobby_updated) })
+
+      Lobby(..lobby, players:)
+    }
+  }
 }
 
-pub fn leave_lobby(lobby: Lobby, player: Player) {
-  actor.send(lobby.subject, Leave(lobby, player))
-}
-
-pub type Room {
-  LobbyRoom(room: Lobby)
+fn handle_game_message(message: GameMessage, game: Game) -> Game {
+  case message {
+    TODO -> {
+      todo as "handle other game message"
+    }
+  }
 }
 
 pub type Pool {
@@ -132,14 +228,22 @@ pub type PoolState {
 }
 
 pub type PoolMessage {
-  CreateLobby(reply_with: Subject(Lobby))
-  GetLobby(reply_with: Subject(Result(Lobby, Nil)), id: ID)
-  RoomDown(process.ProcessDown, id: ID)
+  DeleteRoom(process.ProcessDown, id: ID)
+  CreateRoom(reply_with: Subject(Room))
+  GetRoom(reply_with: Subject(Result(Room, Nil)), id: ID)
 }
 
 pub fn new_pool() -> Pool {
   let assert Ok(subject) = actor.start_spec(pool_spec())
   Pool(subject: subject)
+}
+
+pub fn create_room(pool: Pool) -> Room {
+  actor.call(pool.subject, CreateRoom(_), timeout)
+}
+
+pub fn get_room(pool: Pool, id: ID) -> Result(Room, Nil) {
+  actor.call(pool.subject, GetRoom(_, id), timeout)
 }
 
 fn pool_spec() -> actor.Spec(PoolState, PoolMessage) {
@@ -158,45 +262,41 @@ fn pool_loop(
   state: PoolState,
 ) -> actor.Next(PoolMessage, PoolState) {
   case message {
-    CreateLobby(reply_with) -> {
-      let lobby = new_lobby()
-      actor.send(reply_with, lobby)
+    DeleteRoom(_, id) -> {
+      let state = PoolState(..state, rooms: dict.delete(state.rooms, id))
+      actor.continue(state)
+    }
+
+    CreateRoom(reply_with) -> {
+      let id = ID(generator(id_length))
+      let assert Ok(subject) =
+        actor.start(
+          RoomState(id:, lobby: Lobby(id:, players: []), game: None),
+          room_loop,
+        )
+      let room = Room(subject:)
+
+      actor.send(reply_with, room)
 
       let monitor =
-        lobby.subject
+        room.subject
         |> process.subject_owner
         |> process.monitor_process
 
       let selector =
         state.selector
-        |> process.selecting_process_down(monitor, RoomDown(_, lobby.id))
+        |> process.selecting_process_down(monitor, DeleteRoom(_, id))
 
       let state =
-        PoolState(
-          rooms: dict.insert(state.rooms, lobby.id, LobbyRoom(lobby)),
-          selector:,
-        )
+        PoolState(rooms: dict.insert(state.rooms, id, room), selector:)
+
       actor.Continue(state, Some(selector))
     }
 
-    GetLobby(reply_with, id) -> {
+    GetRoom(reply_with, id) -> {
       dict.get(state.rooms, id)
-      |> result.map(fn(a) { a.room })
       |> actor.send(reply_with, _)
       actor.continue(state)
     }
-
-    RoomDown(_, id) -> {
-      let state = PoolState(..state, rooms: dict.delete(state.rooms, id))
-      actor.continue(state)
-    }
   }
-}
-
-pub fn create_lobby(pool: Pool) -> Lobby {
-  actor.call(pool.subject, CreateLobby(_), timeout)
-}
-
-pub fn get_lobby(pool: Pool, id: ID) -> Result(Lobby, Nil) {
-  actor.call(pool.subject, GetLobby(_, id), timeout)
 }
