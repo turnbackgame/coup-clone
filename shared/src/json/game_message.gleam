@@ -29,8 +29,8 @@ pub fn event_encoder(event: Event) -> Encoder {
   case event {
     Init(game, player, players) -> {
       json.object([
-        #(evt, json.string("lobby/init")),
-        #("lobby", game_encoder(game)),
+        #(evt, json.string("game/init")),
+        #("game", game_encoder(game)),
         #("player", player_encoder(player)),
         #("players", json.array(players, player_encoder)),
       ])
