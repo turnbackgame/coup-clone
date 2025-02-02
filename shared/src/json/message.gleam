@@ -36,3 +36,30 @@ pub fn encode_event(event: Event) -> String {
   }
   json.to_string(encoder)
 }
+
+const cmd = "cmd"
+
+pub type Command {
+  LobbyCommand(lobby_message.Command)
+}
+
+pub fn decode_command(buf: String) -> Result(Command, json.DecodeError) {
+  let decoder = {
+    use command <- decode.field(cmd, decode.string)
+    case string.split(command, "/") {
+      ["lobby", ..] -> {
+        use lobby_command <- decode.then(lobby_message.command_decoder(command))
+        decode.success(LobbyCommand(lobby_command))
+      }
+      _ -> todo
+    }
+  }
+  json.parse(buf, decoder)
+}
+
+pub fn encode_command(command: Command) -> String {
+  let encoder = case command {
+    LobbyCommand(command) -> lobby_message.command_encoder(command)
+  }
+  json.to_string(encoder)
+}
