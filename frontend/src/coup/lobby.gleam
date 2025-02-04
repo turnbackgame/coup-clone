@@ -9,11 +9,11 @@ pub type Lobby {
 }
 
 pub type Player {
-  Player(name: String)
+  Player(name: String, host: Bool)
 }
 
 pub fn new(socket: ws.WebSocket) -> Lobby {
-  Lobby(id: "", player: Player(name: ""), players: [], socket:)
+  Lobby(id: "", player: Player(name: "", host: False), players: [], socket:)
 }
 
 pub fn init(
@@ -22,17 +22,17 @@ pub fn init(
   msg_player: msg.Player,
   msg_players: List(msg.Player),
 ) -> Lobby {
-  let player = Player(name: msg_player.name)
+  let player = Player(name: msg_player.name, host: msg_player.host)
   let players =
     msg_players
-    |> list.map(fn(p) { Player(name: p.name) })
+    |> list.map(fn(p) { Player(name: p.name, host: p.host) })
   Lobby(..lobby, id: msg_lobby.id, player:, players:)
 }
 
 pub fn update_players(lobby: Lobby, msg_players: List(msg.Player)) -> Lobby {
   let players =
     msg_players
-    |> list.map(fn(p) { Player(name: p.name) })
+    |> list.map(fn(p) { Player(name: p.name, host: p.host) })
   Lobby(..lobby, players:)
 }
 

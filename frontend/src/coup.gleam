@@ -2,6 +2,7 @@ import coup/game
 import coup/lobby
 import gleam/bool
 import gleam/int
+import gleam/io
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
@@ -60,8 +61,12 @@ pub fn update(model: Model, msg: Message) -> #(Model, Effect(Message)) {
           #(Model(..model, socket: None), effect.none())
         }
         ws.OnTextMessage(buf) -> {
+          io.debug(buf)
           case message.decode_event(buf) {
-            Error(_) -> todo as "handle decode event error"
+            Error(reason) -> {
+              io.debug(reason)
+              #(model, effect.none())
+            }
             Ok(event) -> update(model, Event(event))
           }
         }
@@ -105,6 +110,7 @@ pub type Page {
 
 fn handle_event(model: Model, event: message.Event) -> #(Model, Effect(Message)) {
   case event {
+    message.UnknownEvent -> #(model, effect.none())
     message.LobbyEvent(lobby_event) -> {
       case model.page {
         DashboardPage | PreLobbyPage(_) -> {
@@ -147,6 +153,7 @@ fn handle_lobby_event(
   event: lobby_message.Event,
 ) -> #(Model, Effect(Message)) {
   case event {
+    lobby_message.UnknownEvent -> #(model, effect.none())
     lobby_message.Init(msg_lobby, msg_player, msg_players) -> {
       let lobby = lobby.init(lobby, msg_lobby, msg_player, msg_players)
       let model = Model(..model, page: LobbyPage(lobby))
@@ -193,6 +200,7 @@ fn handle_lobby_command(
   command: lobby_message.Command,
 ) -> #(Model, Effect(Message)) {
   case command {
+    lobby_message.UnknownCommand -> #(model, effect.none())
     lobby_message.StartGame -> #(model, lobby.start_game(lobby))
   }
 }
@@ -230,27 +238,29 @@ fn view_pre_lobby() -> Element(Message) {
 }
 
 fn view_lobby(lobby: lobby.Lobby) -> Element(Message) {
-  html.div_([], [
-    html.p_([], [
-      html.text(
-        "dear " <> lobby.player.name <> ", welcome to lobby " <> lobby.id,
-      ),
-    ]),
+  let players =
     html.ul_(
       [],
       lobby.players |> list.map(fn(p) { html.li_([], [html.text(p.name)]) }),
-    ),
-    html.button_(
-      [
-        event.on_click(
-          lobby_message.StartGame
-          |> message.LobbyCommand
-          |> Command,
-        ),
-      ],
-      [html.text("start")],
-    ),
-  ])
+    )
+
+  let start_button = case lobby.player.host {
+    False -> element.none()
+    True -> {
+      html.button_(
+        [
+          event.on_click(
+            lobby_message.StartGame
+            |> message.LobbyCommand
+            |> Command,
+          ),
+        ],
+        [html.text("start")],
+      )
+    }
+  }
+
+  html.div_([], [players, start_button])
 }
 
 fn view_game(game: game.Game) -> Element(Message) {

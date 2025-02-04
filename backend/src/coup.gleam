@@ -26,15 +26,15 @@ pub fn generator(n: Int) -> String {
 }
 
 pub type Player {
-  Player(subject: Subject(PlayerMessage), name: String)
+  Player(subject: Subject(PlayerMessage), name: String, host: Bool)
 }
 
-pub fn new_player(name: String) -> Player {
+pub fn new_player(name: String, host: Bool) -> Player {
   let name = case name {
     "" -> "player-" <> generator(5)
     _ -> name
   }
-  Player(subject: process.new_subject(), name:)
+  Player(subject: process.new_subject(), name:, host:)
 }
 
 pub type PlayerMessage {
@@ -158,11 +158,13 @@ fn handle_lobby_message(message: LobbyMessage, lobby: Lobby) -> Lobby {
       let lobby_init =
         lobby_message.Init(
           lobby: lobby_message.Lobby(id: lobby.id.string),
-          player: lobby_message.Player(name: player.name),
+          player: lobby_message.Player(name: player.name, host: player.host),
           players: lobby.players
             |> list.prepend(player)
             |> list.reverse
-            |> list.map(fn(player) { lobby_message.Player(name: player.name) }),
+            |> list.map(fn(player) {
+              lobby_message.Player(name: player.name, host: player.host)
+            }),
         )
         |> message.LobbyEvent
         |> message.encode_event
@@ -174,7 +176,9 @@ fn handle_lobby_message(message: LobbyMessage, lobby: Lobby) -> Lobby {
           players: lobby.players
           |> list.prepend(player)
           |> list.reverse
-          |> list.map(fn(player) { lobby_message.Player(name: player.name) }),
+          |> list.map(fn(player) {
+            lobby_message.Player(name: player.name, host: player.host)
+          }),
         )
         |> message.LobbyEvent
         |> message.encode_event
@@ -197,7 +201,9 @@ fn handle_lobby_message(message: LobbyMessage, lobby: Lobby) -> Lobby {
         lobby_message.PlayersUpdated(
           players: players
           |> list.reverse
-          |> list.map(fn(player) { lobby_message.Player(name: player.name) }),
+          |> list.map(fn(player) {
+            lobby_message.Player(name: player.name, host: player.host)
+          }),
         )
         |> message.LobbyEvent
         |> message.encode_event

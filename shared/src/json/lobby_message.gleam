@@ -1,5 +1,6 @@
 import gleam/dynamic/decode
 import gleam/json
+import gleam/list
 
 type Decoder(a) =
   decode.Decoder(a)
@@ -10,6 +11,7 @@ type Encoder =
 const evt = "evt"
 
 pub type Event {
+  UnknownEvent
   Init(lobby: Lobby, player: Player, players: List(Player))
   PlayersUpdated(players: List(Player))
 }
@@ -26,12 +28,13 @@ pub fn event_decoder(event: String) -> Decoder(Event) {
       use players <- decode.field("players", decode.list(player_decoder()))
       decode.success(PlayersUpdated(players:))
     }
-    _ -> todo
+    _ -> decode.success(UnknownEvent)
   }
 }
 
 pub fn event_encoder(event: Event) -> Encoder {
   case event {
+    UnknownEvent -> json.null()
     Init(lobby, player, players) -> {
       json.object([
         #(evt, json.string("lobby/init")),
@@ -52,6 +55,7 @@ pub fn event_encoder(event: Event) -> Encoder {
 const cmd = "cmd"
 
 pub type Command {
+  UnknownCommand
   StartGame
 }
 
@@ -60,12 +64,13 @@ pub fn command_decoder(command: String) -> Decoder(Command) {
     "lobby/start_game" -> {
       decode.success(StartGame)
     }
-    _ -> todo
+    _ -> decode.success(UnknownCommand)
   }
 }
 
 pub fn command_encoder(command: Command) -> Encoder {
   case command {
+    UnknownCommand -> json.null()
     StartGame -> {
       json.object([#(cmd, json.string("lobby/start_game"))])
     }
@@ -73,7 +78,7 @@ pub fn command_encoder(command: Command) -> Encoder {
 }
 
 pub type Player {
-  Player(name: String)
+  Player(name: String, host: Bool)
 }
 
 pub type Lobby {
@@ -81,12 +86,18 @@ pub type Lobby {
 }
 
 fn player_encoder(player: Player) -> Encoder {
-  json.object([#("name", json.string(player.name))])
+  case player.host {
+    False -> []
+    True -> [#("host", json.bool(player.host))]
+  }
+  |> list.append([#("name", json.string(player.name))])
+  |> json.object
 }
 
 fn player_decoder() -> Decoder(Player) {
   use name <- decode.field("name", decode.string)
-  decode.success(Player(name:))
+  use host <- decode.optional_field("host", False, decode.bool)
+  decode.success(Player(name:, host:))
 }
 
 fn lobby_encoder(lobby: Lobby) -> Encoder {

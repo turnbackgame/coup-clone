@@ -21,11 +21,11 @@ pub fn main() {
         [] -> home()
         ["ws"] -> {
           let room = coup.create_room(pool)
-          handle_req_ws(req, room)
+          handle_req_ws(req, room, True)
         }
         ["ws", id] -> {
           case coup.get_room(pool, coup.ID(id)) {
-            Ok(room) -> handle_req_ws(req, room)
+            Ok(room) -> handle_req_ws(req, room, False)
             Error(_) -> todo as "handle room not found"
           }
         }
@@ -49,7 +49,7 @@ fn not_found() {
   |> response.set_body(mist.Bytes(bytes_tree.new()))
 }
 
-fn handle_req_ws(req: Request(Connection), room: coup.Room) {
+fn handle_req_ws(req: Request(Connection), room: coup.Room, host: Bool) {
   let name =
     request.get_query(req)
     |> result.try(list.key_find(_, "name"))
@@ -66,13 +66,17 @@ fn handle_req_ws(req: Request(Connection), room: coup.Room) {
         mist.Text(buf) -> {
           let assert Ok(command) = message.decode_command(buf)
           case command {
+            message.UnknownCommand -> actor.continue(player)
             message.LobbyCommand(lobby_command) -> {
               case lobby_command {
-                lobby_message.StartGame -> coup.start_game(room)
+                lobby_message.UnknownCommand -> actor.continue(player)
+                lobby_message.StartGame -> {
+                  coup.start_game(room)
+                  actor.continue(player)
+                }
               }
             }
           }
-          actor.continue(player)
         }
         mist.Custom(message) -> {
           let assert Ok(_) = coup.handle_player_message(conn, message)
@@ -83,7 +87,7 @@ fn handle_req_ws(req: Request(Connection), room: coup.Room) {
       }
     },
     on_init: fn(_state) {
-      let player = coup.new_player(name)
+      let player = coup.new_player(name, host)
       let selector =
         process.new_selector()
         |> process.selecting(player.subject, function.identity)

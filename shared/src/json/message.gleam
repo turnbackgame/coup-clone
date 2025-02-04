@@ -7,6 +7,7 @@ import json/lobby_message
 const evt = "evt"
 
 pub type Event {
+  UnknownEvent
   LobbyEvent(lobby_message.Event)
   GameEvent(game_message.Event)
 }
@@ -23,7 +24,7 @@ pub fn decode_event(buf: String) -> Result(Event, json.DecodeError) {
         use game_event <- decode.then(game_message.event_decoder(event))
         decode.success(GameEvent(game_event))
       }
-      _ -> todo
+      _ -> decode.success(UnknownEvent)
     }
   }
   json.parse(buf, decoder)
@@ -31,6 +32,7 @@ pub fn decode_event(buf: String) -> Result(Event, json.DecodeError) {
 
 pub fn encode_event(event: Event) -> String {
   let encoder = case event {
+    UnknownEvent -> json.null()
     LobbyEvent(event) -> lobby_message.event_encoder(event)
     GameEvent(event) -> game_message.event_encoder(event)
   }
@@ -40,6 +42,7 @@ pub fn encode_event(event: Event) -> String {
 const cmd = "cmd"
 
 pub type Command {
+  UnknownCommand
   LobbyCommand(lobby_message.Command)
 }
 
@@ -51,7 +54,7 @@ pub fn decode_command(buf: String) -> Result(Command, json.DecodeError) {
         use lobby_command <- decode.then(lobby_message.command_decoder(command))
         decode.success(LobbyCommand(lobby_command))
       }
-      _ -> todo
+      _ -> decode.success(UnknownCommand)
     }
   }
   json.parse(buf, decoder)
@@ -59,6 +62,7 @@ pub fn decode_command(buf: String) -> Result(Command, json.DecodeError) {
 
 pub fn encode_command(command: Command) -> String {
   let encoder = case command {
+    UnknownCommand -> json.null()
     LobbyCommand(command) -> lobby_message.command_encoder(command)
   }
   json.to_string(encoder)
