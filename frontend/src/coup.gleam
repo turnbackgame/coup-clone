@@ -2,12 +2,10 @@ import coup/game
 import coup/lobby
 import gleam/bool
 import gleam/int
-import gleam/io
 import gleam/list
 import gleam/option.{type Option, None, Some}
-import gleam/result
 import gleam/string
-import gleam/uri.{type Uri}
+import gleam/uri
 import json/game_message
 import json/lobby_message
 import json/message
@@ -39,52 +37,59 @@ pub fn init(_flags) -> #(Model, Effect(Message)) {
 }
 
 pub type Message {
-  OnRouteChange(page: Page)
-  WebSocket(socket: ws.WebSocketEvent)
+  WebSocket(ws_event: ws.WebSocketEvent)
+
+  Event(event: message.Event)
+  Command(command: message.Command)
+
   UserUpdatedName(name: String)
   UserCreatedLobby(key_pressed: String)
   UserJoinedLobby(key_pressed: String)
-
-  LobbyMessage(lobby.Message)
-  GameMessage(game.Message)
 }
 
 pub fn update(model: Model, msg: Message) -> #(Model, Effect(Message)) {
   case model.page, msg {
-    _, OnRouteChange(page) -> #(Model(..model, page:), effect.none())
-    _, WebSocket(event) -> handle_websocket_event(model, event)
+    _, WebSocket(ws_event) -> {
+      case ws_event {
+        ws.InvalidUrl -> todo as "handle invalid URL"
+        ws.OnBinaryMessage(_) -> todo as "handle binary message"
+        ws.OnOpen(socket) -> {
+          #(Model(..model, socket: Some(socket)), effect.none())
+        }
+        ws.OnClose(_) -> {
+          #(Model(..model, socket: None), effect.none())
+        }
+        ws.OnTextMessage(buf) -> {
+          case message.decode_event(buf) {
+            Error(_) -> todo as "handle decode event error"
+            Ok(event) -> update(model, Event(event))
+          }
+        }
+      }
+    }
+
+    _, Event(event) -> handle_event(model, event)
+    _, Command(command) -> handle_command(model, command)
+
     _, UserUpdatedName(name) -> #(Model(..model, name:), effect.none())
 
     DashboardPage, UserCreatedLobby(key_pressed) -> {
-      case key_pressed {
-        "Enter" if model.name != "" -> #(
-          model,
-          ws.init("ws://127.0.0.1:8080/ws?name=" <> model.name, WebSocket),
-        )
-
-        _ -> #(model, effect.none())
-      }
+      let enter = bool.and(key_pressed == "Enter", model.name != "")
+      use <- bool.guard(bool.negate(enter), #(model, effect.none()))
+      let effect =
+        ws.init("ws://127.0.0.1:8080/ws?name=" <> model.name, WebSocket)
+      #(model, effect)
     }
 
     PreLobbyPage(id), UserJoinedLobby(key_pressed) -> {
-      case key_pressed {
-        "Enter" if model.name != "" -> #(
-          model,
-          ws.init(
-            "ws://127.0.0.1:8080/ws/" <> id <> "?name=" <> model.name,
-            WebSocket,
-          ),
+      let enter = bool.and(key_pressed == "Enter", model.name != "")
+      use <- bool.guard(bool.negate(enter), #(model, effect.none()))
+      let effect =
+        ws.init(
+          "ws://127.0.0.1:8080/ws/" <> id <> "?name=" <> model.name,
+          WebSocket,
         )
-        _ -> #(model, effect.none())
-      }
-    }
-
-    LobbyPage(page), LobbyMessage(msg) -> {
-      todo
-    }
-
-    GamePage(page), GameMessage(msg) -> {
-      todo
+      #(model, effect)
     }
 
     _, _ -> todo
@@ -98,75 +103,97 @@ pub type Page {
   GamePage(game.Model)
 }
 
-fn on_route_change(uri: Uri) -> Message {
-  case uri.path_segments(uri.path) {
-    [id] -> OnRouteChange(PreLobbyPage(id))
-    _ -> OnRouteChange(DashboardPage)
-  }
-}
-
-fn handle_websocket_event(
-  model: Model,
-  event: ws.WebSocketEvent,
-) -> #(Model, Effect(Message)) {
+fn handle_event(model: Model, event: message.Event) -> #(Model, Effect(Message)) {
   case event {
-    ws.InvalidUrl -> todo as "handle invalid URL"
-    ws.OnBinaryMessage(_) -> todo as "handle binary message"
-    ws.OnOpen(socket) -> #(Model(..model, socket: Some(socket)), effect.none())
-    ws.OnClose(_) -> #(Model(..model, socket: None), effect.none())
-    ws.OnTextMessage(buf) -> {
-      case message.decode_event(buf) {
-        Error(_) -> #(model, effect.none())
-        Ok(event) -> {
-          case event {
-            message.LobbyEvent(lobby_event) -> {
-              handle_lobby_event(model, lobby_event)
+    message.LobbyEvent(lobby_event) -> {
+      case model.page {
+        DashboardPage | PreLobbyPage(_) -> {
+          case lobby_event {
+            lobby_message.Init(..) -> {
+              let assert Some(socket) = model.socket
+              let lobby = lobby.new(socket)
+              let model = Model(..model, page: LobbyPage(lobby))
+              handle_event(model, event)
             }
-            message.GameEvent(game_event) -> {
-              handle_game_event(model, game_event)
+            _ -> #(model, effect.none())
+          }
+        }
+        LobbyPage(lobby) -> handle_lobby_event(model, lobby, lobby_event)
+        _ -> #(model, effect.none())
+      }
+    }
+    message.GameEvent(game_event) -> {
+      case model.page {
+        LobbyPage(..) -> {
+          case game_event {
+            game_message.Init(..) -> {
+              let assert Some(socket) = model.socket
+              let game = game.new(socket)
+              let model = Model(..model, page: GamePage(game))
+              handle_event(model, event)
             }
           }
         }
+        GamePage(game) -> handle_game_event(model, game, game_event)
+        _ -> #(model, effect.none())
       }
     }
   }
 }
 
-pub fn handle_lobby_event(
+fn handle_lobby_event(
   model: Model,
+  lobby: lobby.Model,
   event: lobby_message.Event,
 ) -> #(Model, Effect(Message)) {
-  case model.page, event {
-    DashboardPage, lobby_message.Init(lobby, player, players)
-    | PreLobbyPage(_), lobby_message.Init(lobby, player, players)
-    -> {
-      let lobby = lobby.init(lobby, player, players, model.socket)
+  case event {
+    lobby_message.Init(msg_lobby, msg_player, msg_players) -> {
+      let lobby = lobby.init(lobby, msg_lobby, msg_player, msg_players)
       let model = Model(..model, page: LobbyPage(lobby))
       #(model, modem.push("/" <> lobby.id, None, None))
     }
 
-    LobbyPage(lobby), lobby_message.PlayersUpdated(players) -> {
-      let lobby = lobby.update_players(lobby, players)
+    lobby_message.PlayersUpdated(msg_players) -> {
+      let lobby = lobby.update_players(lobby, msg_players)
       let model = Model(..model, page: LobbyPage(lobby))
       #(model, effect.none())
     }
-
-    _, _ -> todo
   }
 }
 
-pub fn handle_game_event(
+fn handle_game_event(
   model: Model,
+  game: game.Model,
   event: game_message.Event,
 ) -> #(Model, Effect(Message)) {
-  case model.page, event {
-    LobbyPage(_), game_message.Init(game, player, players) -> {
-      let game = game.init(game, player, players, model.socket)
+  case event {
+    game_message.Init(msg_game, msg_player, msg_players) -> {
+      let game = game.init(game, msg_game, msg_player, msg_players)
       let model = Model(..model, page: GamePage(game))
       #(model, effect.none())
     }
+  }
+}
 
-    _, _ -> todo
+fn handle_command(
+  model: Model,
+  command: message.Command,
+) -> #(Model, Effect(Message)) {
+  case model.page, command {
+    LobbyPage(lobby), message.LobbyCommand(lobby_command) -> {
+      handle_lobby_command(model, lobby, lobby_command)
+    }
+    _, _ -> #(model, effect.none())
+  }
+}
+
+fn handle_lobby_command(
+  model: Model,
+  lobby: lobby.Model,
+  command: lobby_message.Command,
+) -> #(Model, Effect(Message)) {
+  case command {
+    lobby_message.StartGame -> #(model, lobby.start_game(lobby))
   }
 }
 
@@ -203,23 +230,38 @@ fn view_pre_lobby() -> Element(Message) {
 }
 
 fn view_lobby(lobby: lobby.Model) -> Element(Message) {
-  let players =
-    lobby.players
-    |> list.map(fn(p) { html.li_([], [html.text(p.name)]) })
-
   html.div_([], [
     html.p_([], [
       html.text(
-        "dear " <> lobby.player.name <> ", welcome to lobby" <> lobby.id,
+        "dear " <> lobby.player.name <> ", welcome to lobby " <> lobby.id,
       ),
     ]),
-    html.ul_([], players),
+    html.ul_(
+      [],
+      lobby.players |> list.map(fn(p) { html.li_([], [html.text(p.name)]) }),
+    ),
+    html.button_(
+      [
+        event.on_click(
+          lobby_message.StartGame
+          |> message.LobbyCommand
+          |> Command,
+        ),
+      ],
+      [html.text("start")],
+    ),
   ])
 }
 
 fn view_game(game: game.Model) -> Element(Message) {
-  html.p_([], [
-    html.text("dear " <> game.player.name <> ", welcome to game" <> game.id),
+  html.div_([], [
+    html.p_([], [
+      html.text("dear " <> game.player.name <> ", welcome to game " <> game.id),
+    ]),
+    html.ul_(
+      [],
+      game.players |> list.map(fn(p) { html.li_([], [html.text(p.name)]) }),
+    ),
   ])
 }
 
