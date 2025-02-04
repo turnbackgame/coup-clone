@@ -99,8 +99,8 @@ pub fn update(model: Model, msg: Message) -> #(Model, Effect(Message)) {
 pub type Page {
   DashboardPage
   PreLobbyPage(id: String)
-  LobbyPage(lobby.Model)
-  GamePage(game.Model)
+  LobbyPage(lobby.Lobby)
+  GamePage(game.Game)
 }
 
 fn handle_event(model: Model, event: message.Event) -> #(Model, Effect(Message)) {
@@ -143,7 +143,7 @@ fn handle_event(model: Model, event: message.Event) -> #(Model, Effect(Message))
 
 fn handle_lobby_event(
   model: Model,
-  lobby: lobby.Model,
+  lobby: lobby.Lobby,
   event: lobby_message.Event,
 ) -> #(Model, Effect(Message)) {
   case event {
@@ -163,7 +163,7 @@ fn handle_lobby_event(
 
 fn handle_game_event(
   model: Model,
-  game: game.Model,
+  game: game.Game,
   event: game_message.Event,
 ) -> #(Model, Effect(Message)) {
   case event {
@@ -189,7 +189,7 @@ fn handle_command(
 
 fn handle_lobby_command(
   model: Model,
-  lobby: lobby.Model,
+  lobby: lobby.Lobby,
   command: lobby_message.Command,
 ) -> #(Model, Effect(Message)) {
   case command {
@@ -229,7 +229,7 @@ fn view_pre_lobby() -> Element(Message) {
   ])
 }
 
-fn view_lobby(lobby: lobby.Model) -> Element(Message) {
+fn view_lobby(lobby: lobby.Lobby) -> Element(Message) {
   html.div_([], [
     html.p_([], [
       html.text(
@@ -253,7 +253,7 @@ fn view_lobby(lobby: lobby.Model) -> Element(Message) {
   ])
 }
 
-fn view_game(game: game.Model) -> Element(Message) {
+fn view_game(game: game.Game) -> Element(Message) {
   html.div_([], [
     html.p_([], [
       html.text("dear " <> game.player.name <> ", welcome to game " <> game.id),
