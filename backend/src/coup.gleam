@@ -120,7 +120,6 @@ fn room_loop(
                     game: game_message.Game(id: game.id.string),
                     player: game_message.Player(name: player.name),
                     players: game.players
-                      |> list.prepend(player)
                       |> list.reverse
                       |> list.map(fn(player) {
                         game_message.Player(name: player.name)
