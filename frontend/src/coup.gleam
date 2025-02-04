@@ -254,29 +254,21 @@ fn view_lobby(lobby: lobby.Lobby) -> Element(Message) {
 }
 
 fn view_game(game: game.Game) -> Element(Message) {
-  html.div_([], [
-    html.p_([], [
-      html.text("dear " <> game.player.name <> ", welcome to game " <> game.id),
-    ]),
-    html.ul_(
-      [],
-      game.players |> list.map(fn(p) { html.li_([], [html.text(p.name)]) }),
-    ),
-  ])
+  view_board(game)
 }
 
 fn main_style() -> css.Class {
   css.class([css.height(length.vh(100))])
 }
 
-fn view_board(player_count: Int) -> Element(Message) {
+fn view_board(game: game.Game) -> Element(Message) {
   let players_div =
-    list.range(1, player_count)
-    |> list.map(fn(no: Int) {
-      html.div(player_area(no), [], [html.text("player " <> int.to_string(no))])
+    game.players
+    |> list.index_map(fn(player, no) {
+      html.div(player_area(no + 1), [], [html.text(player.name)])
     })
 
-  html.div(board_style(players(player_count)), [], [
+  html.div(board_style(players(list.length(players_div))), [], [
     html.div(court_area(), [], [html.text("court")]),
     ..players_div
   ])
