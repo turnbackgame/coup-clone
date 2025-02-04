@@ -1,5 +1,5 @@
 {
-  description = "Coup";
+  description = "Coup Clone";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
 
@@ -16,10 +16,10 @@
         in
         {
           default = pkgs.mkShell {
-            name = "coup";
+            name = "coup-clone";
             shellHook = ''
               git config pull.rebase true
-              ${pkgs.neo-cowsay}/bin/cowsay -f sage "Coup"
+              ${pkgs.neo-cowsay}/bin/cowsay -f sage "Coup Clone"
             '';
             buildInputs = with pkgs; [
               editorconfig-checker
