@@ -1,6 +1,8 @@
 import coup
+import coup/lobby
+import coup/message as msg
 import gleam/bytes_tree
-import gleam/erlang/process
+import gleam/erlang/process.{type Subject}
 import gleam/function
 import gleam/http/request.{type Request}
 import gleam/http/response
@@ -8,7 +10,6 @@ import gleam/list
 import gleam/option.{Some}
 import gleam/otp/actor
 import gleam/result
-import json/lobby_message
 import json/message
 import mist.{type Connection}
 
@@ -24,7 +25,7 @@ pub fn main() {
           handle_req_ws(req, room, True)
         }
         ["ws", id] -> {
-          case coup.get_room(pool, coup.ID(id)) {
+          case coup.get_room(pool, id) {
             Ok(room) -> handle_req_ws(req, room, False)
             Error(_) -> todo as "handle room not found"
           }
@@ -49,7 +50,11 @@ fn not_found() {
   |> response.set_body(mist.Bytes(bytes_tree.new()))
 }
 
-fn handle_req_ws(req: Request(Connection), room: coup.Room, host: Bool) {
+fn handle_req_ws(
+  req: Request(Connection),
+  room: Subject(msg.Command),
+  host: Bool,
+) {
   let name =
     request.get_query(req)
     |> result.try(list.key_find(_, "name"))
@@ -65,21 +70,11 @@ fn handle_req_ws(req: Request(Connection), room: coup.Room, host: Bool) {
         }
         mist.Text(buf) -> {
           let assert Ok(command) = message.decode_command(buf)
-          case command {
-            message.UnknownCommand -> actor.continue(player)
-            message.LobbyCommand(lobby_command) -> {
-              case lobby_command {
-                lobby_message.UnknownCommand -> actor.continue(player)
-                lobby_message.StartGame -> {
-                  coup.start_game(room)
-                  actor.continue(player)
-                }
-              }
-            }
-          }
+          coup.handle_command(room, msg.Command(command))
+          actor.continue(player)
         }
-        mist.Custom(message) -> {
-          let assert Ok(_) = coup.handle_player_message(conn, message)
+        mist.Custom(event) -> {
+          let assert Ok(_) = coup.handle_event(conn, event)
           actor.continue(player)
         }
         mist.Binary(_) | mist.Text(_) | mist.Custom(_) -> actor.continue(player)
@@ -87,13 +82,13 @@ fn handle_req_ws(req: Request(Connection), room: coup.Room, host: Bool) {
       }
     },
     on_init: fn(_state) {
-      let player = coup.new_player(name, host)
+      let player = msg.new_player(name, host)
       let selector =
         process.new_selector()
         |> process.selecting(player.subject, function.identity)
-      coup.join_lobby(room, player)
+      lobby.join_lobby(room, player)
       #(player, Some(selector))
     },
-    on_close: fn(player) { coup.leave_lobby(room, player) },
+    on_close: fn(player) { lobby.leave_lobby(room, player) },
   )
 }
