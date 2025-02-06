@@ -89,9 +89,21 @@ fn room_loop(
               actor.continue(state)
             }
             None -> {
-              use <- bool.guard(
+              let not_enough_player = fn() {
+                state.lobby.players
+                |> deque.to_list
+                |> list.each(fn(player) {
+                  use <- bool.guard(!player.host, Nil)
+                  actor.send(
+                    player.subject,
+                    json.Error("require minimum 2 player to start the game"),
+                  )
+                })
+                actor.continue(state)
+              }
+              use <- bool.lazy_guard(
                 deque.length(state.lobby.players) < 2,
-                actor.continue(state),
+                not_enough_player,
               )
 
               let game = game.Game(id: state.id, players: state.lobby.players)

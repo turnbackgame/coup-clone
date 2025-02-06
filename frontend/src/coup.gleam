@@ -50,8 +50,8 @@ pub fn update(model: Model, msg: Message) -> #(Model, Effect(Message)) {
   case model.page, msg {
     _, WebSocket(ws_event) -> {
       case ws_event {
-        ws.InvalidUrl -> todo as "handle invalid URL"
-        ws.OnBinaryMessage(_) -> todo as "handle binary message"
+        ws.InvalidUrl -> #(model, effect.none())
+        ws.OnBinaryMessage(_) -> #(model, effect.none())
         ws.OnOpen(socket) -> {
           #(Model(..model, socket: Some(socket)), effect.none())
         }
@@ -59,7 +59,6 @@ pub fn update(model: Model, msg: Message) -> #(Model, Effect(Message)) {
           #(Model(..model, socket: None), effect.none())
         }
         ws.OnTextMessage(buf) -> {
-          io.debug(buf)
           case json.decode_event(buf) {
             Error(reason) -> {
               io.debug(reason)
@@ -95,7 +94,7 @@ pub fn update(model: Model, msg: Message) -> #(Model, Effect(Message)) {
       #(model, effect)
     }
 
-    _, _ -> todo
+    _, _ -> #(model, effect.none())
   }
 }
 
@@ -108,6 +107,10 @@ pub type Page {
 
 fn handle_event(model: Model, event: json.Event) -> #(Model, Effect(Message)) {
   case event {
+    json.Error(msg) -> {
+      io.debug(msg)
+      #(model, effect.none())
+    }
     json.LobbyEvent(lobby_event) -> {
       case model.page {
         DashboardPage | PreLobbyPage(_) -> {

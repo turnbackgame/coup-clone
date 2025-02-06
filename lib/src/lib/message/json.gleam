@@ -12,6 +12,7 @@ type Encoder =
 const evt = "evt"
 
 pub type Event {
+  Error(String)
   LobbyEvent(LobbyEvent)
   GameEvent(GameEvent)
 }
@@ -20,6 +21,10 @@ pub fn decode_event(buf: String) -> Result(Event, json.DecodeError) {
   let decoder = {
     use event <- decode.field(evt, decode.string)
     case string.split(event, "/") {
+      ["error"] -> {
+        use err <- decode.field("msg", decode.string)
+        decode.success(Error(err))
+      }
       ["lobby", ..] -> {
         use lobby_event <- decode.then(lobby_event_decoder(event))
         decode.success(LobbyEvent(lobby_event))
@@ -36,6 +41,9 @@ pub fn decode_event(buf: String) -> Result(Event, json.DecodeError) {
 
 pub fn encode_event(event: Event) -> String {
   let encoder = case event {
+    Error(err) -> {
+      json.object([#(evt, json.string("error")), #("msg", json.string(err))])
+    }
     LobbyEvent(event) -> lobby_event_encoder(event)
     GameEvent(event) -> game_event_encoder(event)
   }
