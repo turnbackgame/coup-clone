@@ -5,13 +5,13 @@ target = "javascript"
 version = "1.0.0"
 
 [dependencies]
+shared = { path = "../shared/"}
 gleam_stdlib = ">= 0.52.0 and < 2.0.0"
 lustre = ">= 4.6.3 and < 5.0.0"
 sketch = ">= 4.0.0 and < 5.0.0"
 sketch_lustre = ">= 2.0.0 and < 3.0.0"
 modem = ">= 2.0.1 and < 3.0.0"
 lustre_websocket = ">= 0.7.6 and < 1.0.0"
-shared = { path = "../shared/"}
 
 [dev-dependencies]
 gleeunit = ">= 1.0.0 and < 2.0.0"

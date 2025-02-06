@@ -1,5 +1,5 @@
-import glanoid
 import gleam/erlang/process.{type Subject}
+import ids
 import message/json
 
 pub type Event =
@@ -15,15 +15,9 @@ pub type Player {
   Player(subject: Subject(Event), name: String, host: Bool)
 }
 
-fn generator(n: Int) -> String {
-  let assert Ok(generator) =
-    glanoid.make_generator("0123456789abcdefghijklmnopqrstuvwxyz")
-  generator(n)
-}
-
 pub fn new_player(name: String, host: Bool) -> Player {
   let name = case name {
-    "" -> "player-" <> generator(5)
+    "" -> "player-" <> ids.generate(5)
     _ -> name
   }
   Player(subject: process.new_subject(), name:, host:)

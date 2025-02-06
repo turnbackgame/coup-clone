@@ -1,14 +1,18 @@
 import coup/message
 import coup/message as msg
 import coup/room
-import glanoid
 import gleam/dict
 import gleam/erlang/process.{type Subject}
 import gleam/function
 import gleam/option.{Some}
 import gleam/otp/actor
+import ids
 import message/json
 import mist
+
+const timeout = 100
+
+const id_length = 8
 
 pub type PoolState {
   PoolState(
@@ -70,7 +74,7 @@ fn pool_loop(
     }
 
     CreateRoom(reply_with) -> {
-      let id = generator(id_length)
+      let id = ids.generate(id_length)
       let room = room.new_room(id)
       actor.send(reply_with, room)
 
@@ -95,14 +99,4 @@ fn pool_loop(
       actor.continue(state)
     }
   }
-}
-
-const timeout = 100
-
-const id_length = 8
-
-fn generator(n: Int) -> String {
-  let assert Ok(generator) =
-    glanoid.make_generator("0123456789abcdefghijklmnopqrstuvwxyz")
-  generator(n)
 }
