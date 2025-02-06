@@ -1,6 +1,6 @@
 # https://gleam.run/writing-gleam/gleam-toml/.
 
-name = "shared"
+name = "lib"
 version = "1.0.0"
 
 [dependencies]

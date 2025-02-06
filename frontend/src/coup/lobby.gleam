@@ -1,7 +1,7 @@
 import gleam/list
+import lib/message/json
 import lustre/effect.{type Effect}
 import lustre_websocket as ws
-import message/json
 
 pub type Lobby {
   Lobby(id: String, player: Player, players: List(Player), socket: ws.WebSocket)

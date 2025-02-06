@@ -1,6 +1,6 @@
 import gleam/list
+import lib/message/json
 import lustre_websocket as ws
-import message/json
 
 pub type Game {
   Game(id: String, player: Player, players: List(Player), socket: ws.WebSocket)

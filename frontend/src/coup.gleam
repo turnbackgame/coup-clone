@@ -7,11 +7,11 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
 import gleam/uri
+import lib/message/json
 import lustre/attribute
 import lustre/effect.{type Effect}
 import lustre/event
 import lustre_websocket as ws
-import message/json
 import modem
 import sketch/css
 import sketch/css/length

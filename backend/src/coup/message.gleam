@@ -1,6 +1,6 @@
 import gleam/erlang/process.{type Subject}
-import ids
-import message/json
+import lib/ids
+import lib/message/json
 
 pub type Event =
   json.Event

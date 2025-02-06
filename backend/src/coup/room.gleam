@@ -7,7 +7,7 @@ import gleam/erlang/process.{type Subject}
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/otp/actor
-import message/json
+import lib/message/json
 
 pub type RoomState {
   RoomState(id: String, lobby: Lobby, game: Option(Game))

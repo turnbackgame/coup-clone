@@ -4,7 +4,7 @@ import gleam/deque.{type Deque}
 import gleam/erlang/process.{type Subject}
 import gleam/list
 import gleam/otp/actor
-import message/json
+import lib/message/json
 
 pub type Lobby {
   Lobby(id: String, players: Deque(Player))

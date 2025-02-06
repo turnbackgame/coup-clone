@@ -6,8 +6,8 @@ import gleam/erlang/process.{type Subject}
 import gleam/function
 import gleam/option.{Some}
 import gleam/otp/actor
-import ids
-import message/json
+import lib/ids
+import lib/message/json
 import mist
 
 const timeout = 100
