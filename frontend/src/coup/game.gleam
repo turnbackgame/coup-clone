@@ -1,6 +1,6 @@
 import gleam/list
-import json/game_message as msg
 import lustre_websocket as ws
+import message/json
 
 pub type Game {
   Game(id: String, player: Player, players: List(Player), socket: ws.WebSocket)
@@ -16,9 +16,9 @@ pub fn new(socket: ws.WebSocket) -> Game {
 
 pub fn init(
   game: Game,
-  msg_game: msg.Game,
-  msg_player: msg.Player,
-  msg_players: List(msg.Player),
+  msg_game: json.Game,
+  msg_player: json.GamePlayer,
+  msg_players: List(json.GamePlayer),
 ) -> Game {
   let player = Player(name: msg_player.name)
   let players =
@@ -27,7 +27,7 @@ pub fn init(
   Game(..game, id: msg_game.id, player:, players:)
 }
 
-pub fn update_players(game: Game, msg_players: List(msg.Player)) -> Game {
+pub fn update_players(game: Game, msg_players: List(json.GamePlayer)) -> Game {
   let players =
     msg_players
     |> list.map(fn(p) { Player(name: p.name) })

@@ -1,14 +1,14 @@
 import glanoid
 import gleam/erlang/process.{type Subject}
-import json/message
+import message/json
 
 pub type Event =
-  message.Event
+  json.Event
 
 pub type Command {
   JoinLobby(Player)
   LeaveLobby(Player)
-  Command(message.Command)
+  Command(json.Command)
 }
 
 pub type Player {

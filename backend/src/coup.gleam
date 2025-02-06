@@ -1,3 +1,4 @@
+import coup/message
 import coup/message as msg
 import coup/room
 import glanoid
@@ -6,7 +7,7 @@ import gleam/erlang/process.{type Subject}
 import gleam/function
 import gleam/option.{Some}
 import gleam/otp/actor
-import json/message
+import message/json
 import mist
 
 pub type PoolState {
@@ -38,12 +39,13 @@ pub fn new_pool() -> Subject(PoolMessage) {
 }
 
 pub fn handle_event(conn: mist.WebsocketConnection, event: msg.Event) {
-  message.encode_event(event)
+  json.encode_event(event)
   |> mist.send_text_frame(conn, _)
 }
 
-pub fn handle_command(room: Subject(msg.Command), command: msg.Command) {
-  actor.send(room, command)
+pub fn handle_command(room: Subject(msg.Command), buf: String) {
+  let assert Ok(command) = json.decode_command(buf)
+  actor.send(room, message.Command(command))
 }
 
 pub fn create_room(pool: Subject(PoolMessage)) -> Subject(msg.Command) {

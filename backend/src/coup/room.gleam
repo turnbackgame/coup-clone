@@ -7,10 +7,7 @@ import gleam/erlang/process.{type Subject}
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/otp/actor
-import gleam/result
-import json/game_message
-import json/lobby_message
-import json/message
+import message/json
 
 pub type RoomState {
   RoomState(id: String, lobby: Lobby, game: Option(Game))
@@ -32,23 +29,21 @@ fn room_loop(
       let new_player_list = new_players |> deque.to_list
 
       let lobby_init =
-        lobby_message.Init(
-          lobby: lobby_message.Lobby(id: state.lobby.id),
-          player: lobby_message.Player(name: player.name, host: player.host),
+        json.LobbyInit(
+          lobby: json.Lobby(id: state.lobby.id),
+          player: json.LobbyPlayer(name: player.name, host: player.host),
           players: new_player_list
-            |> list.map(fn(p) {
-              lobby_message.Player(name: p.name, host: p.host)
-            }),
+            |> list.map(fn(p) { json.LobbyPlayer(name: p.name, host: p.host) }),
         )
-        |> message.LobbyEvent
+        |> json.LobbyEvent
       actor.send(player.subject, lobby_init)
 
       let lobby_updated =
-        lobby_message.PlayersUpdated(
+        json.LobbyPlayersUpdated(
           players: new_player_list
-          |> list.map(fn(p) { lobby_message.Player(name: p.name, host: p.host) }),
+          |> list.map(fn(p) { json.LobbyPlayer(name: p.name, host: p.host) }),
         )
-        |> message.LobbyEvent
+        |> json.LobbyEvent
       state.lobby.players
       |> deque.to_list
       |> list.each(fn(p) { actor.send(p.subject, lobby_updated) })
@@ -63,13 +58,11 @@ fn room_loop(
         Ok(lobby) -> {
           let player_list = lobby.players |> deque.to_list
           let lobby_updated =
-            lobby_message.PlayersUpdated(
+            json.LobbyPlayersUpdated(
               players: player_list
-              |> list.map(fn(p) {
-                lobby_message.Player(name: p.name, host: p.host)
-              }),
+              |> list.map(fn(p) { json.LobbyPlayer(name: p.name, host: p.host) }),
             )
-            |> message.LobbyEvent
+            |> json.LobbyEvent
           player_list
           |> list.each(fn(p) { actor.send(p.subject, lobby_updated) })
 
@@ -78,10 +71,9 @@ fn room_loop(
       }
     }
 
-    msg.Command(message.LobbyCommand(lobby_command)) -> {
+    msg.Command(json.LobbyCommand(lobby_command)) -> {
       case lobby_command {
-        lobby_message.UnknownCommand -> todo
-        lobby_message.StartGame -> {
+        json.LobbyStartGame -> {
           case state.game {
             Some(_) -> todo as "handle starting an already started game"
             None -> {
@@ -96,13 +88,13 @@ fn room_loop(
               player_list
               |> list.each(fn(player) {
                 let game_init =
-                  game_message.Init(
-                    game: game_message.Game(id: game.id),
-                    player: game_message.Player(name: player.name),
+                  json.GameInit(
+                    game: json.Game(id: game.id),
+                    player: json.GamePlayer(name: player.name),
                     players: player_list
-                      |> list.map(fn(p) { game_message.Player(name: p.name) }),
+                      |> list.map(fn(p) { json.GamePlayer(name: p.name) }),
                   )
-                  |> message.GameEvent
+                  |> json.GameEvent
                 actor.send(player.subject, game_init)
               })
 
@@ -112,7 +104,5 @@ fn room_loop(
         }
       }
     }
-
-    _ -> todo
   }
 }

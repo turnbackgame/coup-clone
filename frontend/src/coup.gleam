@@ -7,13 +7,11 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
 import gleam/uri
-import json/game_message
-import json/lobby_message
-import json/message
 import lustre/attribute
 import lustre/effect.{type Effect}
 import lustre/event
 import lustre_websocket as ws
+import message/json
 import modem
 import sketch/css
 import sketch/css/length
@@ -40,8 +38,8 @@ pub fn init(_flags) -> #(Model, Effect(Message)) {
 pub type Message {
   WebSocket(ws_event: ws.WebSocketEvent)
 
-  Event(event: message.Event)
-  Command(command: message.Command)
+  Event(event: json.Event)
+  Command(command: json.Command)
 
   UserUpdatedName(name: String)
   UserCreatedLobby(key_pressed: String)
@@ -62,7 +60,7 @@ pub fn update(model: Model, msg: Message) -> #(Model, Effect(Message)) {
         }
         ws.OnTextMessage(buf) -> {
           io.debug(buf)
-          case message.decode_event(buf) {
+          case json.decode_event(buf) {
             Error(reason) -> {
               io.debug(reason)
               #(model, effect.none())
@@ -108,14 +106,13 @@ pub type Page {
   GamePage(game.Game)
 }
 
-fn handle_event(model: Model, event: message.Event) -> #(Model, Effect(Message)) {
+fn handle_event(model: Model, event: json.Event) -> #(Model, Effect(Message)) {
   case event {
-    message.UnknownEvent -> #(model, effect.none())
-    message.LobbyEvent(lobby_event) -> {
+    json.LobbyEvent(lobby_event) -> {
       case model.page {
         DashboardPage | PreLobbyPage(_) -> {
           case lobby_event {
-            lobby_message.Init(..) -> {
+            json.LobbyInit(..) -> {
               let assert Some(socket) = model.socket
               let lobby = lobby.new(socket)
               let model = Model(..model, page: LobbyPage(lobby))
@@ -128,11 +125,12 @@ fn handle_event(model: Model, event: message.Event) -> #(Model, Effect(Message))
         _ -> #(model, effect.none())
       }
     }
-    message.GameEvent(game_event) -> {
+
+    json.GameEvent(game_event) -> {
       case model.page {
         LobbyPage(..) -> {
           case game_event {
-            game_message.Init(..) -> {
+            json.GameInit(..) -> {
               let assert Some(socket) = model.socket
               let game = game.new(socket)
               let model = Model(..model, page: GamePage(game))
@@ -150,17 +148,16 @@ fn handle_event(model: Model, event: message.Event) -> #(Model, Effect(Message))
 fn handle_lobby_event(
   model: Model,
   lobby: lobby.Lobby,
-  event: lobby_message.Event,
+  event: json.LobbyEvent,
 ) -> #(Model, Effect(Message)) {
   case event {
-    lobby_message.UnknownEvent -> #(model, effect.none())
-    lobby_message.Init(msg_lobby, msg_player, msg_players) -> {
+    json.LobbyInit(msg_lobby, msg_player, msg_players) -> {
       let lobby = lobby.init(lobby, msg_lobby, msg_player, msg_players)
       let model = Model(..model, page: LobbyPage(lobby))
       #(model, modem.push("/" <> lobby.id, None, None))
     }
 
-    lobby_message.PlayersUpdated(msg_players) -> {
+    json.LobbyPlayersUpdated(msg_players) -> {
       let lobby = lobby.update_players(lobby, msg_players)
       let model = Model(..model, page: LobbyPage(lobby))
       #(model, effect.none())
@@ -171,10 +168,10 @@ fn handle_lobby_event(
 fn handle_game_event(
   model: Model,
   game: game.Game,
-  event: game_message.Event,
+  event: json.GameEvent,
 ) -> #(Model, Effect(Message)) {
   case event {
-    game_message.Init(msg_game, msg_player, msg_players) -> {
+    json.GameInit(msg_game, msg_player, msg_players) -> {
       let game = game.init(game, msg_game, msg_player, msg_players)
       let model = Model(..model, page: GamePage(game))
       #(model, effect.none())
@@ -184,10 +181,10 @@ fn handle_game_event(
 
 fn handle_command(
   model: Model,
-  command: message.Command,
+  command: json.Command,
 ) -> #(Model, Effect(Message)) {
   case model.page, command {
-    LobbyPage(lobby), message.LobbyCommand(lobby_command) -> {
+    LobbyPage(lobby), json.LobbyCommand(lobby_command) -> {
       handle_lobby_command(model, lobby, lobby_command)
     }
     _, _ -> #(model, effect.none())
@@ -197,11 +194,10 @@ fn handle_command(
 fn handle_lobby_command(
   model: Model,
   lobby: lobby.Lobby,
-  command: lobby_message.Command,
+  command: json.LobbyCommand,
 ) -> #(Model, Effect(Message)) {
   case command {
-    lobby_message.UnknownCommand -> #(model, effect.none())
-    lobby_message.StartGame -> #(model, lobby.start_game(lobby))
+    json.LobbyStartGame -> #(model, lobby.start_game(lobby))
   }
 }
 
@@ -250,8 +246,8 @@ fn view_lobby(lobby: lobby.Lobby) -> Element(Message) {
       html.button_(
         [
           event.on_click(
-            lobby_message.StartGame
-            |> message.LobbyCommand
+            json.LobbyStartGame
+            |> json.LobbyCommand
             |> Command,
           ),
         ],

@@ -1,11 +1,10 @@
-import coup/message.{type Command, type Player} as msg
+import coup/message.{type Command, type Player}
 import gleam/bool
 import gleam/deque.{type Deque}
 import gleam/erlang/process.{type Subject}
 import gleam/list
 import gleam/otp/actor
-import json/lobby_message
-import json/message
+import message/json
 
 pub type Lobby {
   Lobby(id: String, players: Deque(Player))
@@ -29,24 +28,24 @@ pub fn remove_player(lobby: Lobby, player: Player) -> Result(Lobby, Nil) {
     Ok(Lobby(..lobby, players: deque.from_list(players))),
   )
   let assert [first, ..players] = players
-  let new_host = msg.Player(..first, host: True)
+  let new_host = message.Player(..first, host: True)
   let players = deque.from_list([new_host, ..players])
   Ok(Lobby(..lobby, players:))
 }
 
 pub fn join_lobby(room: Subject(Command), player: Player) {
-  actor.send(room, msg.JoinLobby(player))
+  actor.send(room, message.JoinLobby(player))
 }
 
 pub fn leave_lobby(room: Subject(Command), player: Player) {
-  actor.send(room, msg.LeaveLobby(player))
+  actor.send(room, message.LeaveLobby(player))
 }
 
 pub fn start_game(room: Subject(Command)) {
   actor.send(
     room,
-    lobby_message.StartGame
-      |> message.LobbyCommand
-      |> msg.Command,
+    json.LobbyStartGame
+      |> json.LobbyCommand
+      |> message.Command,
   )
 }

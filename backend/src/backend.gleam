@@ -1,6 +1,6 @@
 import coup
 import coup/lobby
-import coup/message as msg
+import coup/message
 import gleam/bytes_tree
 import gleam/erlang/process.{type Subject}
 import gleam/function
@@ -10,7 +10,6 @@ import gleam/list
 import gleam/option.{Some}
 import gleam/otp/actor
 import gleam/result
-import json/message
 import mist.{type Connection}
 
 pub fn main() {
@@ -52,7 +51,7 @@ fn not_found() {
 
 fn handle_req_ws(
   req: Request(Connection),
-  room: Subject(msg.Command),
+  room: Subject(message.Command),
   host: Bool,
 ) {
   let name =
@@ -69,8 +68,7 @@ fn handle_req_ws(
           actor.continue(player)
         }
         mist.Text(buf) -> {
-          let assert Ok(command) = message.decode_command(buf)
-          coup.handle_command(room, msg.Command(command))
+          coup.handle_command(room, buf)
           actor.continue(player)
         }
         mist.Custom(event) -> {
@@ -82,7 +80,7 @@ fn handle_req_ws(
       }
     },
     on_init: fn(_state) {
-      let player = msg.new_player(name, host)
+      let player = message.new_player(name, host)
       let selector =
         process.new_selector()
         |> process.selecting(player.subject, function.identity)
