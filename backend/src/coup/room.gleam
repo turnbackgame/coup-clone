@@ -4,6 +4,7 @@ import coup/message.{type Command} as msg
 import gleam/bool
 import gleam/deque
 import gleam/erlang/process.{type Subject}
+import gleam/io
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/otp/actor
@@ -83,7 +84,10 @@ fn room_loop(
       case lobby_command {
         json.LobbyStartGame -> {
           case state.game {
-            Some(_) -> todo as "handle starting an already started game"
+            Some(game) -> {
+              io.println(game.id <> ": player starting an already started game")
+              actor.continue(state)
+            }
             None -> {
               use <- bool.guard(
                 deque.length(state.lobby.players) < 2,
