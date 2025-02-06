@@ -151,8 +151,8 @@ fn handle_lobby_event(
   event: json.LobbyEvent,
 ) -> #(Model, Effect(Message)) {
   case event {
-    json.LobbyInit(msg_lobby, msg_player, msg_players) -> {
-      let lobby = lobby.init(lobby, msg_lobby, msg_player, msg_players)
+    json.LobbyInit(msg_lobby) -> {
+      let lobby = lobby.init(lobby, msg_lobby)
       let model = Model(..model, page: LobbyPage(lobby))
       #(model, modem.push("/" <> lobby.id, None, None))
     }
@@ -240,7 +240,11 @@ fn view_lobby(lobby: lobby.Lobby) -> Element(Message) {
       lobby.players |> list.map(fn(p) { html.li_([], [html.text(p.name)]) }),
     )
 
-  let start_button = case lobby.player.host {
+  let assert Ok(player) =
+    lobby.players
+    |> list.find(fn(p) { p.you })
+
+  let start_button = case player.host {
     False -> element.none()
     True -> {
       html.button_(

@@ -24,47 +24,55 @@ fn room_loop(
   state: RoomState,
 ) -> actor.Next(Command, RoomState) {
   case message {
-    msg.JoinLobby(player) -> {
-      let new_players = state.lobby.players |> deque.push_back(player)
+    msg.JoinLobby(new_player) -> {
+      let new_players = state.lobby.players |> deque.push_back(new_player)
       let new_player_list = new_players |> deque.to_list
 
-      let lobby_init =
-        json.LobbyInit(
-          lobby: json.Lobby(id: state.lobby.id),
-          player: json.LobbyPlayer(name: player.name, host: player.host),
-          players: new_player_list
-            |> list.map(fn(p) { json.LobbyPlayer(name: p.name, host: p.host) }),
-        )
-        |> json.LobbyEvent
-      actor.send(player.subject, lobby_init)
-
-      let lobby_updated =
-        json.LobbyPlayersUpdated(
-          players: new_player_list
-          |> list.map(fn(p) { json.LobbyPlayer(name: p.name, host: p.host) }),
-        )
-        |> json.LobbyEvent
-      state.lobby.players
+      new_players
       |> deque.to_list
-      |> list.each(fn(p) { actor.send(p.subject, lobby_updated) })
+      |> list.each(fn(player) {
+        case player == new_player {
+          True -> {
+            new_player_list
+            |> list.map(fn(p) {
+              json.LobbyPlayer(name: p.name, you: p == new_player, host: p.host)
+            })
+            |> json.Lobby(id: state.lobby.id, players: _)
+            |> json.LobbyInit
+            |> json.LobbyEvent
+          }
+          False -> {
+            new_player_list
+            |> list.map(fn(p) {
+              json.LobbyPlayer(name: p.name, you: p == player, host: p.host)
+            })
+            |> json.LobbyPlayersUpdated
+            |> json.LobbyEvent
+          }
+        }
+        |> actor.send(player.subject, _)
+      })
 
       let lobby = lobby.Lobby(..state.lobby, players: new_players)
       actor.continue(RoomState(..state, lobby:))
     }
 
-    msg.LeaveLobby(player) -> {
-      case lobby.remove_player(state.lobby, player) {
+    msg.LeaveLobby(the_player) -> {
+      case lobby.remove_player(state.lobby, the_player) {
         Error(_) -> actor.Stop(process.Normal)
         Ok(lobby) -> {
           let player_list = lobby.players |> deque.to_list
-          let lobby_updated =
-            json.LobbyPlayersUpdated(
-              players: player_list
-              |> list.map(fn(p) { json.LobbyPlayer(name: p.name, host: p.host) }),
-            )
-            |> json.LobbyEvent
+
           player_list
-          |> list.each(fn(p) { actor.send(p.subject, lobby_updated) })
+          |> list.each(fn(player) {
+            player_list
+            |> list.map(fn(p) {
+              json.LobbyPlayer(name: p.name, you: p == player, host: p.host)
+            })
+            |> json.LobbyPlayersUpdated
+            |> json.LobbyEvent
+            |> actor.send(player.subject, _)
+          })
 
           actor.continue(RoomState(..state, lobby:))
         }

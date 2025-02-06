@@ -43,7 +43,7 @@ pub fn encode_event(event: Event) -> String {
 }
 
 pub type LobbyEvent {
-  LobbyInit(lobby: Lobby, player: LobbyPlayer, players: List(LobbyPlayer))
+  LobbyInit(lobby: Lobby)
   LobbyPlayersUpdated(players: List(LobbyPlayer))
 }
 
@@ -51,12 +51,7 @@ fn lobby_event_decoder(event: String) -> Decoder(LobbyEvent) {
   case event {
     "lobby/init" -> {
       use lobby <- decode.field("lobby", lobby_decoder())
-      use player <- decode.field("player", lobby_player_decoder())
-      use players <- decode.field(
-        "players",
-        decode.list(lobby_player_decoder()),
-      )
-      decode.success(LobbyInit(lobby:, player:, players:))
+      decode.success(LobbyInit(lobby:))
     }
     "lobby/players_updated" -> {
       use players <- decode.field(
@@ -71,12 +66,10 @@ fn lobby_event_decoder(event: String) -> Decoder(LobbyEvent) {
 
 fn lobby_event_encoder(event: LobbyEvent) -> Encoder {
   case event {
-    LobbyInit(lobby, player, players) -> {
+    LobbyInit(lobby) -> {
       json.object([
         #(evt, json.string("lobby/init")),
         #("lobby", lobby_encoder(lobby)),
-        #("player", lobby_player_encoder(player)),
-        #("players", json.array(players, lobby_player_encoder)),
       ])
     }
     LobbyPlayersUpdated(players) -> {
@@ -166,35 +159,38 @@ pub fn lobby_command_encoder(command: LobbyCommand) -> Encoder {
 }
 
 pub type Lobby {
-  Lobby(id: String)
+  Lobby(id: String, players: List(LobbyPlayer))
 }
 
 fn lobby_encoder(lobby: Lobby) -> Encoder {
-  json.object([#("id", json.string(lobby.id))])
+  json.object([
+    #("id", json.string(lobby.id)),
+    #("players", json.array(lobby.players, lobby_player_encoder)),
+  ])
 }
 
 fn lobby_decoder() -> Decoder(Lobby) {
   use id <- decode.field("id", decode.string)
-  decode.success(Lobby(id:))
+  use players <- decode.field("players", decode.list(lobby_player_decoder()))
+  decode.success(Lobby(id:, players:))
 }
 
 pub type LobbyPlayer {
-  LobbyPlayer(name: String, host: Bool)
+  LobbyPlayer(name: String, you: Bool, host: Bool)
 }
 
 fn lobby_player_encoder(player: LobbyPlayer) -> Encoder {
-  case player.host {
-    False -> []
-    True -> [#("host", json.bool(player.host))]
-  }
-  |> list.append([#("name", json.string(player.name))])
+  [#("name", json.string(player.name))]
+  |> list_prepend_if(player.you, #("you", json.bool(player.you)))
+  |> list_prepend_if(player.host, #("host", json.bool(player.host)))
   |> json.object
 }
 
 fn lobby_player_decoder() -> Decoder(LobbyPlayer) {
   use name <- decode.field("name", decode.string)
+  use you <- decode.optional_field("you", False, decode.bool)
   use host <- decode.optional_field("host", False, decode.bool)
-  decode.success(LobbyPlayer(name:, host:))
+  decode.success(LobbyPlayer(name:, you:, host:))
 }
 
 pub type Game {
@@ -221,4 +217,11 @@ fn player_encoder(player: GamePlayer) -> Encoder {
 fn player_decoder() -> Decoder(GamePlayer) {
   use name <- decode.field("name", decode.string)
   decode.success(GamePlayer(name:))
+}
+
+fn list_prepend_if(list: List(a), cond: Bool, item: a) -> List(a) {
+  case cond {
+    False -> list
+    True -> list.prepend(list, item)
+  }
 }

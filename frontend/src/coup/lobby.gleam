@@ -4,28 +4,22 @@ import lustre/effect.{type Effect}
 import lustre_websocket as ws
 
 pub type Lobby {
-  Lobby(id: String, player: Player, players: List(Player), socket: ws.WebSocket)
+  Lobby(id: String, players: List(Player), socket: ws.WebSocket)
 }
 
 pub type Player {
-  Player(name: String, host: Bool)
+  Player(name: String, you: Bool, host: Bool)
 }
 
 pub fn new(socket: ws.WebSocket) -> Lobby {
-  Lobby(id: "", player: Player(name: "", host: False), players: [], socket:)
+  Lobby(id: "", players: [], socket:)
 }
 
-pub fn init(
-  lobby: Lobby,
-  msg_lobby: json.Lobby,
-  msg_player: json.LobbyPlayer,
-  msg_players: List(json.LobbyPlayer),
-) -> Lobby {
-  let player = Player(name: msg_player.name, host: msg_player.host)
+pub fn init(lobby: Lobby, msg_lobby: json.Lobby) -> Lobby {
   let players =
-    msg_players
-    |> list.map(fn(p) { Player(name: p.name, host: p.host) })
-  Lobby(..lobby, id: msg_lobby.id, player:, players:)
+    msg_lobby.players
+    |> list.map(fn(p) { Player(name: p.name, you: p.you, host: p.host) })
+  Lobby(..lobby, id: msg_lobby.id, players:)
 }
 
 pub fn update_players(
@@ -34,7 +28,7 @@ pub fn update_players(
 ) -> Lobby {
   let players =
     msg_players
-    |> list.map(fn(p) { Player(name: p.name, host: p.host) })
+    |> list.map(fn(p) { Player(name: p.name, you: p.you, host: p.host) })
   Lobby(..lobby, players:)
 }
 
