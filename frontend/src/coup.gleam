@@ -160,8 +160,8 @@ fn handle_lobby_event(
       #(model, modem.push("/" <> lobby.id, None, None))
     }
 
-    json.LobbyPlayersUpdated(msg_players) -> {
-      let lobby = lobby.update_players(lobby, msg_players)
+    json.LobbyUpdatedUsers(host_id, msg_users) -> {
+      let lobby = lobby.update_users(lobby, host_id, msg_users)
       let model = Model(..model, page: LobbyPage(lobby))
       #(model, effect.none())
     }
@@ -174,8 +174,8 @@ fn handle_game_event(
   event: json.GameEvent,
 ) -> #(Model, Effect(Message)) {
   case event {
-    json.GameInit(msg_game, msg_player, msg_players) -> {
-      let game = game.init(game, msg_game, msg_player, msg_players)
+    json.GameInit(msg_game) -> {
+      let game = game.init(game, msg_game)
       let model = Model(..model, page: GamePage(game))
       #(model, effect.none())
     }
@@ -237,17 +237,13 @@ fn view_pre_lobby() -> Element(Message) {
 }
 
 fn view_lobby(lobby: lobby.Lobby) -> Element(Message) {
-  let players =
+  let users =
     html.ul_(
       [],
-      lobby.players |> list.map(fn(p) { html.li_([], [html.text(p.name)]) }),
+      lobby.users |> list.map(fn(p) { html.li_([], [html.text(p.name)]) }),
     )
 
-  let assert Ok(player) =
-    lobby.players
-    |> list.find(fn(p) { p.you })
-
-  let start_button = case player.host {
+  let start_button = case lobby.user_id == lobby.host_id {
     False -> element.none()
     True -> {
       html.button_(
@@ -263,7 +259,7 @@ fn view_lobby(lobby: lobby.Lobby) -> Element(Message) {
     }
   }
 
-  html.div_([], [players, start_button])
+  html.div_([], [users, start_button])
 }
 
 fn view_game(game: game.Game) -> Element(Message) {

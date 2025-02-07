@@ -3,33 +3,25 @@ import lib/message/json
 import lustre_websocket as ws
 
 pub type Game {
-  Game(id: String, player: Player, players: List(Player), socket: ws.WebSocket)
+  Game(
+    socket: ws.WebSocket,
+    id: String,
+    player_id: String,
+    players: List(Player),
+  )
 }
 
 pub type Player {
-  Player(name: String)
+  Player(id: String, name: String)
 }
 
 pub fn new(socket: ws.WebSocket) -> Game {
-  Game(id: "", player: Player(name: ""), players: [], socket:)
+  Game(socket:, id: "", player_id: "", players: [])
 }
 
-pub fn init(
-  game: Game,
-  msg_game: json.Game,
-  msg_player: json.GamePlayer,
-  msg_players: List(json.GamePlayer),
-) -> Game {
-  let player = Player(name: msg_player.name)
+pub fn init(game: Game, msg_game: json.Game) -> Game {
   let players =
-    msg_players
-    |> list.map(fn(p) { Player(name: p.name) })
-  Game(..game, id: msg_game.id, player:, players:)
-}
-
-pub fn update_players(game: Game, msg_players: List(json.GamePlayer)) -> Game {
-  let players =
-    msg_players
-    |> list.map(fn(p) { Player(name: p.name) })
-  Game(..game, players:)
+    msg_game.players
+    |> list.map(fn(p) { Player(id: p.id, name: p.name) })
+  Game(..game, id: msg_game.id, player_id: msg_game.player_id, players:)
 }

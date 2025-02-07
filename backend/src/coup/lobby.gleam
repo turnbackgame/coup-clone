@@ -1,51 +1,45 @@
-import coup/message.{type Command, type Player}
+import domain
 import gleam/bool
 import gleam/deque.{type Deque}
-import gleam/erlang/process.{type Subject}
 import gleam/list
-import gleam/otp/actor
-import lib/message/json
 
 pub type Lobby {
-  Lobby(id: String, players: Deque(Player))
+  Lobby(id: String, host_id: String, users: Deque(domain.User))
 }
 
 pub fn new(id: String) -> Lobby {
-  Lobby(id:, players: deque.new())
+  Lobby(id:, host_id: "", users: deque.new())
 }
 
-/// Remove player from the lobby.
-/// If no players left in the lobby, returns Error(Nil).
-/// If the player is the host, transfer host status to other player.
-pub fn remove_player(lobby: Lobby, player: Player) -> Result(Lobby, Nil) {
-  let players =
-    lobby.players
-    |> deque.to_list
-    |> list.filter(fn(p) { p != player })
-  use <- bool.guard(list.is_empty(players), Error(Nil))
+/// Add user to the lobby.
+/// If more than 6 users in the lobby, returns Error(Nil).
+/// If only one user in the lobby, set host status to the user.
+pub fn add_user(lobby: Lobby, user: domain.User) -> Result(Lobby, Nil) {
+  let updated_users =
+    lobby.users
+    |> deque.push_back(user)
+  let users_count = deque.length(updated_users)
+  use <- bool.guard(users_count > 6, Error(Nil))
   use <- bool.guard(
-    !player.host,
-    Ok(Lobby(..lobby, players: deque.from_list(players))),
+    users_count == 1,
+    Ok(Lobby(..lobby, host_id: user.id, users: updated_users)),
   )
-  let assert [first, ..players] = players
-  let new_host = message.Player(..first, host: True)
-  let players = deque.from_list([new_host, ..players])
-  Ok(Lobby(..lobby, players:))
+  Ok(Lobby(..lobby, users: updated_users))
 }
 
-pub fn join_lobby(room: Subject(Command), player: Player) {
-  actor.send(room, message.JoinLobby(player))
-}
-
-pub fn leave_lobby(room: Subject(Command), player: Player) {
-  actor.send(room, message.LeaveLobby(player))
-}
-
-pub fn start_game(room: Subject(Command)) {
-  actor.send(
-    room,
-    json.LobbyStartGame
-      |> json.LobbyCommand
-      |> message.Command,
+/// Remove user from the lobby.
+/// If no users left in the lobby, returns Error(Nil).
+/// If the user is the host, transfer host status to other user.
+pub fn remove_user(lobby: Lobby, user: domain.User) -> Result(Lobby, Nil) {
+  let updated_users =
+    lobby.users
+    |> deque.to_list
+    |> list.filter(fn(u) { u != user })
+  use <- bool.guard(list.is_empty(updated_users), Error(Nil))
+  use <- bool.guard(
+    user.id != lobby.host_id,
+    Ok(Lobby(..lobby, users: deque.from_list(updated_users))),
   )
+  let assert Ok(first) = list.first(updated_users)
+  Ok(Lobby(..lobby, host_id: first.id, users: deque.from_list(updated_users)))
 }

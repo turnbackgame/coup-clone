@@ -1,6 +1,6 @@
-import coup/message.{type Player}
+import domain
 import gleam/deque.{type Deque}
 
 pub type Game {
-  Game(id: String, players: Deque(Player))
+  Game(id: String, players: Deque(domain.Player))
 }

@@ -1,8 +1,7 @@
 import coup
-import coup/lobby
-import coup/message
+import domain
 import gleam/bytes_tree
-import gleam/erlang/process.{type Subject}
+import gleam/erlang/process
 import gleam/function
 import gleam/http/request.{type Request}
 import gleam/http/response
@@ -10,6 +9,8 @@ import gleam/list
 import gleam/option.{Some}
 import gleam/otp/actor
 import gleam/result
+import handler
+import lib/message/json
 import mist.{type Connection}
 
 pub fn main() {
@@ -21,11 +22,11 @@ pub fn main() {
         [] -> home()
         ["ws"] -> {
           let room = coup.create_room(pool)
-          handle_req_ws(req, room, True)
+          handle_req_ws(req, room)
         }
         ["ws", id] -> {
           case coup.get_room(pool, id) {
-            Ok(room) -> handle_req_ws(req, room, False)
+            Ok(room) -> handle_req_ws(req, room)
             Error(_) -> todo as "handle room not found"
           }
         }
@@ -49,11 +50,7 @@ fn not_found() {
   |> response.set_body(mist.Bytes(bytes_tree.new()))
 }
 
-fn handle_req_ws(
-  req: Request(Connection),
-  room: Subject(message.Command),
-  host: Bool,
-) {
+fn handle_req_ws(req: Request(Connection), room: domain.Room) {
   let name =
     request.get_query(req)
     |> result.try(list.key_find(_, "name"))
@@ -61,32 +58,37 @@ fn handle_req_ws(
 
   mist.websocket(
     request: req,
-    handler: fn(player, conn, msg) {
+    handler: fn(user, conn, msg) {
       case msg {
         mist.Text("ping") -> {
           let assert Ok(_) = mist.send_text_frame(conn, "pong")
-          actor.continue(player)
+          actor.continue(user)
         }
         mist.Text(buf) -> {
-          coup.handle_command(room, buf)
-          actor.continue(player)
+          let assert Ok(command) = json.decode_command(buf)
+          handler.handle_command(user, command)
+          |> actor.send(room, _)
+          actor.continue(user)
         }
         mist.Custom(event) -> {
-          let assert Ok(_) = coup.handle_event(conn, event)
-          actor.continue(player)
+          let assert Ok(_) =
+            handler.handle_event(user, event)
+            |> json.encode_event
+            |> mist.send_text_frame(conn, _)
+          actor.continue(user)
         }
-        mist.Binary(_) | mist.Text(_) | mist.Custom(_) -> actor.continue(player)
+        mist.Binary(_) | mist.Text(_) | mist.Custom(_) -> actor.continue(user)
         mist.Closed | mist.Shutdown -> actor.Stop(process.Normal)
       }
     },
     on_init: fn(_state) {
-      let player = message.new_player(name, host)
+      let user = domain.new_user(name)
       let selector =
         process.new_selector()
-        |> process.selecting(player.subject, function.identity)
-      lobby.join_lobby(room, player)
-      #(player, Some(selector))
+        |> process.selecting(user.subject, function.identity)
+      handler.join_lobby(room, user)
+      #(user, Some(selector))
     },
-    on_close: fn(player) { lobby.leave_lobby(room, player) },
+    on_close: fn(user) { handler.leave_lobby(room, user) },
   )
 }

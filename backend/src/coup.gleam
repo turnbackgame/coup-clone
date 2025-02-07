@@ -1,14 +1,11 @@
-import coup/message
-import coup/message as msg
 import coup/room
+import domain
 import gleam/dict
 import gleam/erlang/process.{type Subject}
 import gleam/function
 import gleam/option.{Some}
 import gleam/otp/actor
 import lib/ids
-import lib/message/json
-import mist
 
 const timeout = 100
 
@@ -16,15 +13,15 @@ const id_length = 8
 
 pub type PoolState {
   PoolState(
-    rooms: dict.Dict(String, Subject(msg.Command)),
+    rooms: dict.Dict(String, domain.Room),
     selector: process.Selector(PoolMessage),
   )
 }
 
 pub type PoolMessage {
   DeleteRoom(process.ProcessDown, id: String)
-  CreateRoom(reply_with: Subject(Subject(msg.Command)))
-  GetRoom(reply_with: Subject(Result(Subject(msg.Command), Nil)), id: String)
+  CreateRoom(reply_with: Subject(domain.Room))
+  GetRoom(reply_with: Subject(Result(domain.Room, Nil)), id: String)
 }
 
 pub fn new_pool() -> Subject(PoolMessage) {
@@ -42,24 +39,14 @@ pub fn new_pool() -> Subject(PoolMessage) {
   subject
 }
 
-pub fn handle_event(conn: mist.WebsocketConnection, event: msg.Event) {
-  json.encode_event(event)
-  |> mist.send_text_frame(conn, _)
-}
-
-pub fn handle_command(room: Subject(msg.Command), buf: String) {
-  let assert Ok(command) = json.decode_command(buf)
-  actor.send(room, message.Command(command))
-}
-
-pub fn create_room(pool: Subject(PoolMessage)) -> Subject(msg.Command) {
+pub fn create_room(pool: Subject(PoolMessage)) -> domain.Room {
   actor.call(pool, CreateRoom(_), timeout)
 }
 
 pub fn get_room(
   pool: Subject(PoolMessage),
   id: String,
-) -> Result(Subject(msg.Command), Nil) {
+) -> Result(domain.Room, Nil) {
   actor.call(pool, GetRoom(_, id), timeout)
 }
 
