@@ -52,7 +52,7 @@ pub fn handle_command(user: coup.User, command: json.Command) -> coup.Command {
 
 pub fn handle_event(_user: coup.User, event: coup.Event) -> json.Event {
   case event {
-    coup.Error(msg) -> json.Error(msg)
+    coup.SendError(msg) -> json.Error(msg)
 
     coup.LobbyInit(id, user_id, host_id, users) -> {
       users
@@ -69,12 +69,31 @@ pub fn handle_event(_user: coup.User, event: coup.Event) -> json.Event {
       |> json.LobbyEvent
     }
 
-    coup.GameInit(id, player_id, players) -> {
-      players
-      |> list.map(fn(u) { json.Player(id: u.id, name: u.name) })
-      |> json.Game(id:, player_id:, players: _)
+    coup.GameInit(id, player, other_players, deck_count) -> {
+      let cards =
+        player.cards |> list.map(fn(card) { json.FaceUp(card_to_json(card)) })
+      let player = json.Player(id: player.id, name: player.name, cards:)
+
+      other_players
+      |> list.map(fn(p) {
+        json.Player(id: p.id, name: p.name, cards: [
+          json.FaceDown,
+          json.FaceDown,
+        ])
+      })
+      |> json.Game(id:, player:, other_players: _, deck_count:)
       |> json.GameInit
       |> json.GameEvent
     }
+  }
+}
+
+fn card_to_json(card: coup.Card) -> json.Character {
+  case card {
+    coup.Duke -> json.Duke
+    coup.Assassin -> json.Assassin
+    coup.Contessa -> json.Contessa
+    coup.Captain -> json.Captain
+    coup.Ambassador -> json.Ambassador
   }
 }

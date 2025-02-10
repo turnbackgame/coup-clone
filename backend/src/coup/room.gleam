@@ -2,10 +2,8 @@ import coup/coup
 import coup/game.{type Game}
 import coup/lobby.{type Lobby}
 import gleam/bool
-import gleam/deque
 import gleam/erlang/process.{type Subject}
 import gleam/io
-import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/otp/actor
 
@@ -34,51 +32,42 @@ fn room_loop(
       }
     }
 
-    coup.LeaveLobby(the_user) -> {
-      case lobby.remove_user(state.lobby, the_user) {
+    coup.LeaveLobby(user) -> {
+      case lobby.remove_user(state.lobby, user) {
         Ok(lobby) -> actor.continue(RoomState(..state, lobby:))
         Error(_) -> actor.Stop(process.Normal)
       }
     }
 
-    coup.StartGame(the_user) -> {
+    coup.StartGame(user) -> {
       case state.game {
         Some(game) -> {
           io.println(game.id <> ": player starting an already started game")
           actor.continue(state)
         }
         None -> {
-          let not_enough_player = fn() {
-            use <- bool.guard(
-              the_user.id == state.lobby.host_id,
-              actor.continue(state),
+          use <- bool.lazy_guard(!lobby.is_user_host(state.lobby, user), fn() {
+            actor.send(
+              user.subject,
+              coup.SendError("only host can start the game"),
             )
-            coup.Error("require minimum 2 player to start the game")
-            |> actor.send(the_user.subject, _)
             actor.continue(state)
-          }
-
-          use <- bool.lazy_guard(
-            deque.length(state.lobby.users) < 2,
-            not_enough_player,
-          )
-
-          let players =
-            state.lobby.users
-            |> deque.to_list
-            |> list.map(fn(user) {
-              coup.Player(subject: user.subject, id: user.id, name: user.name)
-            })
-
-          let game =
-            game.Game(id: state.lobby.id, players: deque.from_list(players))
-
-          players
-          |> list.each(fn(player) {
-            coup.GameInit(id: game.id, player_id: player.id, players: players)
-            |> actor.send(player.subject, _)
           })
 
+          let players = coup.to_players(state.lobby.users)
+          use <- bool.lazy_guard(!game.is_enough_player(players), fn() {
+            actor.send(
+              user.subject,
+              coup.SendError("require minimum 2 player to start the game"),
+            )
+            actor.continue(state)
+          })
+
+          let game =
+            game.new(state.lobby.id)
+            |> game.add_players(players)
+            |> game.assign_cards
+            |> game.start_game
           actor.continue(RoomState(..state, game: Some(game)))
         }
       }

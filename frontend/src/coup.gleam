@@ -272,15 +272,24 @@ fn main_style() -> css.Class {
 
 fn view_board(game: game.Game) -> Element(Message) {
   let players_div =
-    game.players
+    game.other_players
+    |> list.prepend(game.player)
     |> list.index_map(fn(player, no) {
-      html.div(player_area(no + 1), [], [html.text(player.name)])
+      html.div(player_area(no + 1), [], [view_player(player)])
     })
 
   html.div(board_style(players(list.length(players_div))), [], [
     html.div(court_area(), [], [html.text("court")]),
     ..players_div
   ])
+}
+
+fn view_player(player: game.Player) -> Element(Message) {
+  let card_text =
+    player.cards
+    |> list.map(fn(card) { json.card_to_string(card) })
+    |> string.join(", ")
+  html.text(player.name <> ": " <> card_text)
 }
 
 fn board_style(players) -> css.Class {

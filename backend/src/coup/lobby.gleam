@@ -24,7 +24,7 @@ pub fn add_user(lobby: Lobby, user: coup.User) -> Result(Lobby, Nil) {
   let users_count = list.length(users)
 
   use <- bool.lazy_guard(users_count > 6, fn() {
-    coup.Error("the lobby is full")
+    coup.SendError("the lobby is full")
     |> actor.send(user.subject, _)
     Error(Nil)
   })
@@ -70,4 +70,8 @@ pub fn remove_user(lobby: Lobby, user: coup.User) -> Result(Lobby, Nil) {
   })
 
   Ok(Lobby(..lobby, host_id:, users: deque.from_list(users)))
+}
+
+pub fn is_user_host(lobby: Lobby, user: coup.User) -> Bool {
+  lobby.host_id == user.id
 }

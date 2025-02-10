@@ -197,36 +197,113 @@ fn user_decoder() -> Decoder(User) {
 }
 
 pub type Game {
-  Game(id: String, player_id: String, players: List(Player))
+  Game(id: String, player: Player, other_players: List(Player), deck_count: Int)
 }
 
 fn game_encoder(game: Game) -> Encoder {
   [
     #("id", json.string(game.id)),
-    #("player_id", json.string(game.player_id)),
-    #("players", json.array(game.players, player_encoder)),
+    #("player", player_encoder(game.player)),
+    #("other_players", json.array(game.other_players, player_encoder)),
+    #("deck_count", json.int(game.deck_count)),
   ]
   |> json.object
 }
 
 fn game_decoder() -> Decoder(Game) {
   use id <- decode.field("id", decode.string)
-  use player_id <- decode.field("player_id", decode.string)
-  use players <- decode.field("players", decode.list(player_decoder()))
-  decode.success(Game(id:, player_id:, players:))
+  use player <- decode.field("player", player_decoder())
+  use other_players <- decode.field(
+    "other_players",
+    decode.list(player_decoder()),
+  )
+  use deck_count <- decode.field("deck_count", decode.int)
+  decode.success(Game(id:, player:, other_players:, deck_count:))
 }
 
 pub type Player {
-  Player(id: String, name: String)
+  Player(id: String, name: String, cards: List(Card))
 }
 
 fn player_encoder(player: Player) -> Encoder {
-  [#("id", json.string(player.id)), #("name", json.string(player.name))]
+  [
+    #("id", json.string(player.id)),
+    #("name", json.string(player.name)),
+    #("cards", json.array(player.cards, card_encoder)),
+  ]
   |> json.object
 }
 
 fn player_decoder() -> Decoder(Player) {
   use id <- decode.field("id", decode.string)
   use name <- decode.field("name", decode.string)
-  decode.success(Player(id:, name:))
+  use cards <- decode.field("cards", decode.list(card_decoder()))
+  decode.success(Player(id:, name:, cards:))
+}
+
+pub type Character {
+  Duke
+  Assassin
+  Contessa
+  Captain
+  Ambassador
+}
+
+fn character_encoder(character: Character) -> Encoder {
+  character
+  |> character_to_string
+  |> json.string
+}
+
+fn character_decoder(character: String) -> Decoder(Character) {
+  case character {
+    "duke" -> decode.success(Duke)
+    "assassin" -> decode.success(Assassin)
+    "contessa" -> decode.success(Contessa)
+    "captain" -> decode.success(Captain)
+    "ambassador" -> decode.success(Ambassador)
+    _ -> todo
+  }
+}
+
+pub fn character_to_string(character: Character) -> String {
+  case character {
+    Duke -> "duke"
+    Assassin -> "assassin"
+    Contessa -> "contessa"
+    Captain -> "captain"
+    Ambassador -> "ambassador"
+  }
+}
+
+pub type Card {
+  FaceDown
+  FaceUp(Character)
+}
+
+fn card_encoder(card: Card) -> Encoder {
+  case card {
+    FaceDown -> json.string("")
+    FaceUp(character) -> character_encoder(character)
+  }
+}
+
+fn card_decoder() -> Decoder(Card) {
+  decode.string
+  |> decode.then(fn(card) {
+    case card {
+      "" -> decode.success(FaceDown)
+      character -> {
+        use character <- decode.then(character_decoder(character))
+        decode.success(FaceUp(character))
+      }
+    }
+  })
+}
+
+pub fn card_to_string(card: Card) -> String {
+  case card {
+    FaceDown -> "face-down"
+    FaceUp(character) -> character_to_string(character)
+  }
 }
