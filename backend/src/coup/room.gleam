@@ -30,7 +30,7 @@ fn room_loop(
     coup.JoinLobby(new_user) -> {
       case lobby.add_user(state.lobby, new_user) {
         Error(_) -> {
-          coup.Error("require minimum 2 player to start the game")
+          coup.Error("the lobby is full")
           |> actor.send(new_user.subject, _)
           actor.continue(state)
         }
