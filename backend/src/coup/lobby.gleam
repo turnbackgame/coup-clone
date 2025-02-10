@@ -2,6 +2,7 @@ import coup/coup
 import gleam/bool
 import gleam/deque.{type Deque}
 import gleam/list
+import gleam/otp/actor
 
 pub type Lobby {
   Lobby(id: String, host_id: String, users: Deque(coup.User))
@@ -15,31 +16,58 @@ pub fn new(id: String) -> Lobby {
 /// If more than 6 users in the lobby, returns Error(Nil).
 /// If only one user in the lobby, set host status to the user.
 pub fn add_user(lobby: Lobby, user: coup.User) -> Result(Lobby, Nil) {
-  let updated_users =
+  let users =
     lobby.users
     |> deque.push_back(user)
-  let users_count = deque.length(updated_users)
-  use <- bool.guard(users_count > 6, Error(Nil))
-  use <- bool.guard(
-    users_count == 1,
-    Ok(Lobby(..lobby, host_id: user.id, users: updated_users)),
-  )
-  Ok(Lobby(..lobby, users: updated_users))
+    |> deque.to_list
+
+  let users_count = list.length(users)
+
+  use <- bool.lazy_guard(users_count > 6, fn() {
+    coup.Error("the lobby is full")
+    |> actor.send(user.subject, _)
+    Error(Nil)
+  })
+
+  let host_id = {
+    use <- bool.guard(users_count == 1, user.id)
+    lobby.host_id
+  }
+
+  users
+  |> list.each(fn(u) {
+    case u == user {
+      True -> coup.LobbyInit(id: lobby.id, user_id: u.id, host_id:, users:)
+      False -> coup.LobbyUpdatedUsers(host_id:, users:)
+    }
+    |> actor.send(u.subject, _)
+  })
+
+  Ok(Lobby(..lobby, host_id:, users: deque.from_list(users)))
 }
 
 /// Remove user from the lobby.
 /// If no users left in the lobby, returns Error(Nil).
 /// If the user is the host, transfer host status to other user.
 pub fn remove_user(lobby: Lobby, user: coup.User) -> Result(Lobby, Nil) {
-  let updated_users =
+  let users =
     lobby.users
     |> deque.to_list
     |> list.filter(fn(u) { u != user })
-  use <- bool.guard(list.is_empty(updated_users), Error(Nil))
-  use <- bool.guard(
-    user.id != lobby.host_id,
-    Ok(Lobby(..lobby, users: deque.from_list(updated_users))),
-  )
-  let assert Ok(first) = list.first(updated_users)
-  Ok(Lobby(..lobby, host_id: first.id, users: deque.from_list(updated_users)))
+
+  use <- bool.guard(list.is_empty(users), Error(Nil))
+
+  let host_id = {
+    use <- bool.guard(user.id != lobby.host_id, lobby.host_id)
+    let assert Ok(first) = list.first(users)
+    first.id
+  }
+
+  users
+  |> list.each(fn(u) {
+    coup.LobbyUpdatedUsers(host_id:, users:)
+    |> actor.send(u.subject, _)
+  })
+
+  Ok(Lobby(..lobby, host_id:, users: deque.from_list(users)))
 }

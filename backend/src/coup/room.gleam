@@ -27,58 +27,17 @@ fn room_loop(
   state: RoomState,
 ) -> actor.Next(coup.Command, RoomState) {
   case command {
-    coup.JoinLobby(new_user) -> {
-      case lobby.add_user(state.lobby, new_user) {
-        Error(_) -> {
-          coup.Error("the lobby is full")
-          |> actor.send(new_user.subject, _)
-          actor.continue(state)
-        }
-        Ok(lobby) -> {
-          let updated_users = lobby.users |> deque.to_list
-
-          updated_users
-          |> list.each(fn(user) {
-            case user == new_user {
-              True -> {
-                coup.LobbyInit(
-                  id: lobby.id,
-                  user_id: user.id,
-                  host_id: lobby.host_id,
-                  users: updated_users,
-                )
-              }
-              False -> {
-                coup.LobbyUpdatedUsers(
-                  host_id: lobby.host_id,
-                  users: updated_users,
-                )
-              }
-            }
-            |> actor.send(user.subject, _)
-          })
-
-          let lobby =
-            lobby.Lobby(..lobby, users: deque.from_list(updated_users))
-          actor.continue(RoomState(..state, lobby:))
-        }
+    coup.JoinLobby(user) -> {
+      case lobby.add_user(state.lobby, user) {
+        Ok(lobby) -> actor.continue(RoomState(..state, lobby:))
+        Error(_) -> actor.continue(state)
       }
     }
 
     coup.LeaveLobby(the_user) -> {
       case lobby.remove_user(state.lobby, the_user) {
+        Ok(lobby) -> actor.continue(RoomState(..state, lobby:))
         Error(_) -> actor.Stop(process.Normal)
-        Ok(lobby) -> {
-          let updated_users = lobby.users |> deque.to_list
-
-          updated_users
-          |> list.each(fn(user) {
-            coup.LobbyUpdatedUsers(host_id: lobby.host_id, users: updated_users)
-            |> actor.send(user.subject, _)
-          })
-
-          actor.continue(RoomState(..state, lobby:))
-        }
       }
     }
 
