@@ -1,33 +1,36 @@
+import coup/coup
 import coup/game.{type Game}
 import coup/lobby.{type Lobby}
-import domain
 import gleam/bool
 import gleam/deque
-import gleam/erlang/process
+import gleam/erlang/process.{type Subject}
 import gleam/io
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/otp/actor
 
+pub type Room =
+  Subject(coup.Command)
+
 pub type RoomState {
   RoomState(lobby: Lobby, game: Option(Game))
 }
 
-pub fn new_room(id: String) -> domain.Room {
+pub fn new_room(id: String) -> Room {
   let assert Ok(subject) =
     actor.start(RoomState(lobby: lobby.new(id), game: None), room_loop)
   subject
 }
 
 fn room_loop(
-  command: domain.Command,
+  command: coup.Command,
   state: RoomState,
-) -> actor.Next(domain.Command, RoomState) {
+) -> actor.Next(coup.Command, RoomState) {
   case command {
-    domain.JoinLobby(new_user) -> {
+    coup.JoinLobby(new_user) -> {
       case lobby.add_user(state.lobby, new_user) {
         Error(_) -> {
-          domain.Error("require minimum 2 player to start the game")
+          coup.Error("require minimum 2 player to start the game")
           |> actor.send(new_user.subject, _)
           actor.continue(state)
         }
@@ -38,7 +41,7 @@ fn room_loop(
           |> list.each(fn(user) {
             case user == new_user {
               True -> {
-                domain.LobbyInit(
+                coup.LobbyInit(
                   id: lobby.id,
                   user_id: user.id,
                   host_id: lobby.host_id,
@@ -46,7 +49,7 @@ fn room_loop(
                 )
               }
               False -> {
-                domain.LobbyUpdatedUsers(
+                coup.LobbyUpdatedUsers(
                   host_id: lobby.host_id,
                   users: updated_users,
                 )
@@ -62,7 +65,7 @@ fn room_loop(
       }
     }
 
-    domain.LeaveLobby(the_user) -> {
+    coup.LeaveLobby(the_user) -> {
       case lobby.remove_user(state.lobby, the_user) {
         Error(_) -> actor.Stop(process.Normal)
         Ok(lobby) -> {
@@ -70,10 +73,7 @@ fn room_loop(
 
           updated_users
           |> list.each(fn(user) {
-            domain.LobbyUpdatedUsers(
-              host_id: lobby.host_id,
-              users: updated_users,
-            )
+            coup.LobbyUpdatedUsers(host_id: lobby.host_id, users: updated_users)
             |> actor.send(user.subject, _)
           })
 
@@ -82,7 +82,7 @@ fn room_loop(
       }
     }
 
-    domain.StartGame(the_user) -> {
+    coup.StartGame(the_user) -> {
       case state.game {
         Some(game) -> {
           io.println(game.id <> ": player starting an already started game")
@@ -94,7 +94,7 @@ fn room_loop(
               the_user.id == state.lobby.host_id,
               actor.continue(state),
             )
-            domain.Error("require minimum 2 player to start the game")
+            coup.Error("require minimum 2 player to start the game")
             |> actor.send(the_user.subject, _)
             actor.continue(state)
           }
@@ -108,7 +108,7 @@ fn room_loop(
             state.lobby.users
             |> deque.to_list
             |> list.map(fn(user) {
-              domain.Player(subject: user.subject, id: user.id, name: user.name)
+              coup.Player(subject: user.subject, id: user.id, name: user.name)
             })
 
           let game =
@@ -116,7 +116,7 @@ fn room_loop(
 
           players
           |> list.each(fn(player) {
-            domain.GameInit(id: game.id, player_id: player.id, players: players)
+            coup.GameInit(id: game.id, player_id: player.id, players: players)
             |> actor.send(player.subject, _)
           })
 

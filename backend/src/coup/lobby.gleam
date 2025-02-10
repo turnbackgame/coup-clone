@@ -1,10 +1,10 @@
-import domain
+import coup/coup
 import gleam/bool
 import gleam/deque.{type Deque}
 import gleam/list
 
 pub type Lobby {
-  Lobby(id: String, host_id: String, users: Deque(domain.User))
+  Lobby(id: String, host_id: String, users: Deque(coup.User))
 }
 
 pub fn new(id: String) -> Lobby {
@@ -14,7 +14,7 @@ pub fn new(id: String) -> Lobby {
 /// Add user to the lobby.
 /// If more than 6 users in the lobby, returns Error(Nil).
 /// If only one user in the lobby, set host status to the user.
-pub fn add_user(lobby: Lobby, user: domain.User) -> Result(Lobby, Nil) {
+pub fn add_user(lobby: Lobby, user: coup.User) -> Result(Lobby, Nil) {
   let updated_users =
     lobby.users
     |> deque.push_back(user)
@@ -30,7 +30,7 @@ pub fn add_user(lobby: Lobby, user: domain.User) -> Result(Lobby, Nil) {
 /// Remove user from the lobby.
 /// If no users left in the lobby, returns Error(Nil).
 /// If the user is the host, transfer host status to other user.
-pub fn remove_user(lobby: Lobby, user: domain.User) -> Result(Lobby, Nil) {
+pub fn remove_user(lobby: Lobby, user: coup.User) -> Result(Lobby, Nil) {
   let updated_users =
     lobby.users
     |> deque.to_list

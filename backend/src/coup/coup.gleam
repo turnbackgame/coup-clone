@@ -1,5 +1,4 @@
 import gleam/erlang/process.{type Subject}
-import lib/ids
 
 pub type Command {
   JoinLobby(User)
@@ -14,20 +13,8 @@ pub type Event {
   GameInit(id: String, player_id: String, players: List(Player))
 }
 
-pub type Room =
-  Subject(Command)
-
 pub type User {
   User(subject: Subject(Event), id: String, name: String)
-}
-
-pub fn new_user(name: String) -> User {
-  let id = ids.generate(8)
-  let name = case name {
-    "" -> "player-" <> ids.generate(5)
-    _ -> name
-  }
-  User(subject: process.new_subject(), id:, name:)
 }
 
 pub type Player {

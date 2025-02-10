@@ -1,89 +1,80 @@
+import coup/coup
+import coup/pool
 import coup/room
-import domain
-import gleam/dict
-import gleam/erlang/process.{type Subject}
-import gleam/function
-import gleam/option.{Some}
+import gleam/erlang/process
+import gleam/list
 import gleam/otp/actor
 import lib/ids
+import lib/message/json
 
 const timeout = 100
 
-const id_length = 8
+pub type Pool =
+  pool.Pool
 
-pub type PoolState {
-  PoolState(
-    rooms: dict.Dict(String, domain.Room),
-    selector: process.Selector(PoolMessage),
-  )
+pub type Room =
+  room.Room
+
+pub fn new_pool() -> pool.Pool {
+  pool.new()
 }
 
-pub type PoolMessage {
-  DeleteRoom(process.ProcessDown, id: String)
-  CreateRoom(reply_with: Subject(domain.Room))
-  GetRoom(reply_with: Subject(Result(domain.Room, Nil)), id: String)
+pub fn new_user(name: String) -> coup.User {
+  let id = ids.generate(8)
+  let name = case name {
+    "" -> "player-" <> ids.generate(5)
+    _ -> name
+  }
+  coup.User(subject: process.new_subject(), id:, name:)
 }
 
-pub fn new_pool() -> Subject(PoolMessage) {
-  let assert Ok(subject) =
-    actor.start_spec(
-      actor.Spec(init_timeout: timeout, loop: pool_loop, init: fn() {
-        let subject = process.new_subject()
-        let selector =
-          process.new_selector()
-          |> process.selecting(subject, function.identity)
-        let state = PoolState(rooms: dict.new(), selector: selector)
-        actor.Ready(state, selector)
-      }),
-    )
-  subject
+pub fn create_room(pool: pool.Pool) -> room.Room {
+  actor.call(pool, pool.CreateRoom(_), timeout)
 }
 
-pub fn create_room(pool: Subject(PoolMessage)) -> domain.Room {
-  actor.call(pool, CreateRoom(_), timeout)
+pub fn get_room(pool: pool.Pool, id: String) -> Result(room.Room, Nil) {
+  actor.call(pool, pool.GetRoom(_, id), timeout)
 }
 
-pub fn get_room(
-  pool: Subject(PoolMessage),
-  id: String,
-) -> Result(domain.Room, Nil) {
-  actor.call(pool, GetRoom(_, id), timeout)
+pub fn join_lobby(room: room.Room, user: coup.User) {
+  actor.send(room, coup.JoinLobby(user))
 }
 
-fn pool_loop(
-  message: PoolMessage,
-  state: PoolState,
-) -> actor.Next(PoolMessage, PoolState) {
-  case message {
-    DeleteRoom(_, id) -> {
-      let state = PoolState(..state, rooms: dict.delete(state.rooms, id))
-      actor.continue(state)
+pub fn leave_lobby(room: room.Room, user: coup.User) {
+  actor.send(room, coup.LeaveLobby(user))
+}
+
+pub fn handle_command(user: coup.User, command: json.Command) -> coup.Command {
+  case command {
+    json.LobbyCommand(json.LobbyStartGame) -> coup.StartGame(user)
+  }
+}
+
+pub fn handle_event(_user: coup.User, event: coup.Event) -> json.Event {
+  case event {
+    coup.Error(msg) -> json.Error(msg)
+
+    coup.LobbyInit(id, user_id, host_id, users) -> {
+      users
+      |> list.map(fn(u) { json.User(id: u.id, name: u.name) })
+      |> json.Lobby(id:, user_id:, host_id:, users: _)
+      |> json.LobbyInit
+      |> json.LobbyEvent
     }
 
-    CreateRoom(reply_with) -> {
-      let id = ids.generate(id_length)
-      let room = room.new_room(id)
-      actor.send(reply_with, room)
-
-      let monitor =
-        room
-        |> process.subject_owner
-        |> process.monitor_process
-
-      let selector =
-        state.selector
-        |> process.selecting_process_down(monitor, DeleteRoom(_, id))
-
-      let state =
-        PoolState(rooms: dict.insert(state.rooms, id, room), selector:)
-
-      actor.Continue(state, Some(selector))
+    coup.LobbyUpdatedUsers(host_id, users) -> {
+      users
+      |> list.map(fn(u) { json.User(id: u.id, name: u.name) })
+      |> json.LobbyUpdatedUsers(host_id:, users: _)
+      |> json.LobbyEvent
     }
 
-    GetRoom(reply_with, id) -> {
-      dict.get(state.rooms, id)
-      |> actor.send(reply_with, _)
-      actor.continue(state)
+    coup.GameInit(id, player_id, players) -> {
+      players
+      |> list.map(fn(u) { json.Player(id: u.id, name: u.name) })
+      |> json.Game(id:, player_id:, players: _)
+      |> json.GameInit
+      |> json.GameEvent
     }
   }
 }

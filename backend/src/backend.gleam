@@ -1,5 +1,4 @@
 import coup
-import domain
 import gleam/bytes_tree
 import gleam/erlang/process
 import gleam/function
@@ -9,7 +8,6 @@ import gleam/list
 import gleam/option.{Some}
 import gleam/otp/actor
 import gleam/result
-import handler
 import lib/message/json
 import mist.{type Connection}
 
@@ -50,7 +48,7 @@ fn not_found() {
   |> response.set_body(mist.Bytes(bytes_tree.new()))
 }
 
-fn handle_req_ws(req: Request(Connection), room: domain.Room) {
+fn handle_req_ws(req: Request(Connection), room: coup.Room) {
   let name =
     request.get_query(req)
     |> result.try(list.key_find(_, "name"))
@@ -66,13 +64,13 @@ fn handle_req_ws(req: Request(Connection), room: domain.Room) {
         }
         mist.Text(buf) -> {
           let assert Ok(command) = json.decode_command(buf)
-          handler.handle_command(user, command)
+          coup.handle_command(user, command)
           |> actor.send(room, _)
           actor.continue(user)
         }
         mist.Custom(event) -> {
           let assert Ok(_) =
-            handler.handle_event(user, event)
+            coup.handle_event(user, event)
             |> json.encode_event
             |> mist.send_text_frame(conn, _)
           actor.continue(user)
@@ -82,13 +80,13 @@ fn handle_req_ws(req: Request(Connection), room: domain.Room) {
       }
     },
     on_init: fn(_state) {
-      let user = domain.new_user(name)
+      let user = coup.new_user(name)
       let selector =
         process.new_selector()
         |> process.selecting(user.subject, function.identity)
-      handler.join_lobby(room, user)
+      coup.join_lobby(room, user)
       #(user, Some(selector))
     },
-    on_close: fn(user) { handler.leave_lobby(room, user) },
+    on_close: fn(user) { coup.leave_lobby(room, user) },
   )
 }
