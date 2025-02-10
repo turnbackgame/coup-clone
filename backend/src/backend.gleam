@@ -17,7 +17,6 @@ pub fn main() {
   let assert Ok(_) =
     fn(req) {
       case request.path_segments(req) {
-        [] -> home()
         ["ws"] -> {
           let room = coup.create_room(pool)
           handle_req_ws(req, room)
@@ -36,11 +35,6 @@ pub fn main() {
     |> mist.start_http
 
   process.sleep_forever()
-}
-
-fn home() {
-  response.new(200)
-  |> response.set_body(mist.Bytes(bytes_tree.from_string("Hello, World!")))
 }
 
 fn not_found() {
