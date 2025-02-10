@@ -16,7 +16,7 @@ pub type RoomState {
   RoomState(lobby: Lobby, game: Option(Game))
 }
 
-pub fn new_room(id: String) -> Room {
+pub fn new(id: String) -> Room {
   let assert Ok(subject) =
     actor.start(RoomState(lobby: lobby.new(id), game: None), room_loop)
   subject

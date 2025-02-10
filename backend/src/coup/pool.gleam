@@ -53,7 +53,7 @@ fn pool_loop(
 
     CreateRoom(reply_with) -> {
       let id = ids.generate(id_length)
-      let room = room.new_room(id)
+      let room = room.new(id)
       actor.send(reply_with, room)
 
       let monitor =
