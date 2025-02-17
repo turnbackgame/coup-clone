@@ -1,53 +1,83 @@
+import gleam/bool
 import gleam/list
-import lib/message/json
+import lib/json
+import lib/message
 import lustre/effect.{type Effect}
+import lustre/event
 import lustre_websocket as ws
+import sketch/lustre/element.{type Element}
+import sketch/lustre/element/html
 
 pub type Lobby {
   Lobby(
     socket: ws.WebSocket,
     id: String,
+    users: List(message.User),
     user_id: String,
     host_id: String,
-    users: List(User),
   )
 }
 
-pub type User {
-  User(id: String, name: String)
+pub type Command {
+  UserLeavedLobby
+  UserStartedGame
 }
 
 pub fn new(socket: ws.WebSocket) -> Lobby {
-  Lobby(socket:, id: "", user_id: "", host_id: "", users: [])
+  Lobby(socket:, id: "", users: [], user_id: "", host_id: "")
 }
 
-pub fn init(lobby: Lobby, msg_lobby: json.Lobby) -> Lobby {
+pub fn update(lobby: Lobby, command: Command) -> #(Lobby, Effect(Command)) {
+  case command {
+    UserLeavedLobby -> {
+      let effect =
+        message.LobbyLeave
+        |> message.LobbyCommand
+        |> json.encode_command
+        |> ws.send(lobby.socket, _)
+      #(lobby, effect)
+    }
+
+    UserStartedGame -> {
+      let effect =
+        message.LobbyStartGame
+        |> message.LobbyCommand
+        |> json.encode_command
+        |> ws.send(lobby.socket, _)
+      #(lobby, effect)
+    }
+  }
+}
+
+pub fn view(lobby: Lobby) -> Element(Command) {
   let users =
-    msg_lobby.users
-    |> list.map(fn(p) { User(id: p.id, name: p.name) })
-  Lobby(
-    ..lobby,
-    id: msg_lobby.id,
-    user_id: msg_lobby.user_id,
-    host_id: msg_lobby.host_id,
-    users:,
-  )
+    html.ul_(
+      [],
+      lobby.users |> list.map(fn(p) { html.li_([], [html.text(p.name)]) }),
+    )
+
+  let start_button = {
+    use <- bool.guard(lobby.user_id != lobby.host_id, element.none())
+    html.button_([event.on_click(UserStartedGame)], [html.text("start")])
+  }
+
+  html.div_([], [users, start_button])
+}
+
+pub fn init(
+  lobby: Lobby,
+  id: String,
+  users: List(message.User),
+  user_id: String,
+  host_id: String,
+) -> Lobby {
+  Lobby(..lobby, id: id, users:, user_id: user_id, host_id: host_id)
 }
 
 pub fn update_users(
   lobby: Lobby,
+  users: List(message.User),
   host_id: String,
-  msg_users: List(json.User),
 ) -> Lobby {
-  let users =
-    msg_users
-    |> list.map(fn(p) { User(id: p.id, name: p.name) })
-  Lobby(..lobby, host_id:, users:)
-}
-
-pub fn start_game(lobby: Lobby) -> Effect(a) {
-  json.LobbyStartGame
-  |> json.LobbyCommand
-  |> json.encode_command
-  |> ws.send(lobby.socket, _)
+  Lobby(..lobby, users:, host_id:)
 }

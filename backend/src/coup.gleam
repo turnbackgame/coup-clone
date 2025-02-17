@@ -1,99 +1,133 @@
-import coup/coup
-import coup/pool
-import coup/room
-import gleam/erlang/process
+import gleam/erlang/process.{type Subject}
 import gleam/list
 import gleam/otp/actor
 import lib/ids
-import lib/message/json
+import lib/message
 
-const timeout = 100
-
-pub type Pool =
-  pool.Pool
-
-pub type Room =
-  room.Room
-
-pub fn new_pool() -> pool.Pool {
-  pool.new()
+pub type Context {
+  Context(subject: Subject(message.Event), id: String)
 }
 
-pub fn new_user(name: String) -> coup.User {
-  let id = ids.generate(8)
-  let name = case name {
-    "" -> "player-" <> ids.generate(5)
-    _ -> name
-  }
-  coup.User(subject: process.new_subject(), id:, name:)
+pub fn new_context() -> Context {
+  Context(subject: process.new_subject(), id: ids.generate(5))
 }
 
-pub fn create_room(pool: pool.Pool) -> room.Room {
-  actor.call(pool, pool.CreateRoom(_), timeout)
+/// todo: remove this
+pub fn send_error(ctx: Context, err: Error) {
+  error_to_string(err)
+  |> message.ErrorEvent
+  |> actor.send(ctx.subject, _)
 }
 
-pub fn get_room(pool: pool.Pool, id: String) -> Result(room.Room, Nil) {
-  actor.call(pool, pool.GetRoom(_, id), timeout)
+pub type Error {
+  LobbyNotExist
+  LobbyFull
+  LobbyEmpty
+
+  UserNotExist
+  UserNotHost
+
+  GameNotExist
+  GameAlreadyStarted
+
+  PlayerNotExist
+  PlayersNotEnough
 }
 
-pub fn join_lobby(room: room.Room, user: coup.User) {
-  actor.send(room, coup.JoinLobby(user))
-}
+pub fn error_to_string(err: Error) -> String {
+  case err {
+    LobbyNotExist -> "lobby not exist"
+    LobbyFull -> "lobby is full"
+    LobbyEmpty -> "lobby is empty"
 
-pub fn leave_lobby(room: room.Room, user: coup.User) {
-  actor.send(room, coup.LeaveLobby(user))
-}
+    UserNotExist -> "user not exist"
+    UserNotHost -> "require host to start the game"
 
-pub fn handle_command(user: coup.User, command: json.Command) -> coup.Command {
-  case command {
-    json.LobbyCommand(json.LobbyStartGame) -> coup.StartGame(user)
-  }
-}
+    GameNotExist -> "game not exist"
+    GameAlreadyStarted -> "game already started"
 
-pub fn handle_event(_user: coup.User, event: coup.Event) -> json.Event {
-  case event {
-    coup.SendError(msg) -> json.Error(msg)
-
-    coup.LobbyInit(id, user_id, host_id, users) -> {
-      users
-      |> list.map(fn(u) { json.User(id: u.id, name: u.name) })
-      |> json.Lobby(id:, user_id:, host_id:, users: _)
-      |> json.LobbyInit
-      |> json.LobbyEvent
-    }
-
-    coup.LobbyUpdatedUsers(host_id, users) -> {
-      users
-      |> list.map(fn(u) { json.User(id: u.id, name: u.name) })
-      |> json.LobbyUpdatedUsers(host_id:, users: _)
-      |> json.LobbyEvent
-    }
-
-    coup.GameInit(id, player, other_players, deck_count) -> {
-      let cards =
-        player.cards |> list.map(fn(card) { json.FaceUp(card_to_json(card)) })
-      let player = json.Player(id: player.id, name: player.name, cards:)
-
-      other_players
-      |> list.map(fn(p) {
-        json.Player(id: p.id, name: p.name, cards: [
-          json.FaceDown,
-          json.FaceDown,
-        ])
-      })
-      |> json.Game(id:, player:, other_players: _, deck_count:)
-      |> json.GameInit
-      |> json.GameEvent
-    }
+    PlayerNotExist -> "player not exist"
+    PlayersNotEnough -> "not enough players to start the game"
   }
 }
 
-fn card_to_json(card: coup.Card) -> json.Character {
+pub type Character {
+  Duke
+  Assassin
+  Contessa
+  Captain
+  Ambassador
+}
+
+pub fn character_to_message(character: Character) -> message.Character {
+  case character {
+    Duke -> message.Duke
+    Assassin -> message.Assassin
+    Contessa -> message.Contessa
+    Captain -> message.Captain
+    Ambassador -> message.Ambassador
+  }
+}
+
+pub type Card {
+  FaceDown(Character)
+  FaceUp(Character)
+}
+
+pub fn card_to_message(card: Card) -> message.Card {
   case card {
-    coup.Duke -> json.Duke
-    coup.Assassin -> json.Assassin
-    coup.Contessa -> json.Contessa
-    coup.Captain -> json.Captain
-    coup.Ambassador -> json.Ambassador
+    FaceDown(character) -> message.FaceDown(character_to_message(character))
+    FaceUp(character) -> message.FaceUp(character_to_message(character))
+  }
+}
+
+pub type CardSet {
+  CardSet(left: Card, right: Card)
+}
+
+pub fn new_card_set() -> CardSet {
+  CardSet(FaceDown(Duke), FaceDown(Duke))
+}
+
+pub fn card_set_to_message(card_set: CardSet) -> message.CardSet {
+  message.CardSet(
+    left: card_to_message(card_set.left),
+    right: card_to_message(card_set.right),
+  )
+}
+
+pub opaque type Deck {
+  Deck(cards: List(Card))
+}
+
+pub fn new_deck() -> Deck {
+  []
+  |> list.append(list.repeat(FaceDown(Duke), 3))
+  |> list.append(list.repeat(FaceDown(Assassin), 3))
+  |> list.append(list.repeat(FaceDown(Contessa), 3))
+  |> list.append(list.repeat(FaceDown(Captain), 3))
+  |> list.append(list.repeat(FaceDown(Ambassador), 3))
+  |> Deck
+}
+
+pub fn shuffle_deck(deck: Deck) -> Deck {
+  deck.cards
+  |> list.shuffle
+  |> Deck
+}
+
+pub fn count_deck(deck: Deck) -> Int {
+  list.length(deck.cards)
+}
+
+pub fn draw_initial_card(deck: Deck) -> #(Deck, CardSet) {
+  let assert [left, right, ..rest] = deck.cards
+  #(Deck(rest), CardSet(left, right))
+}
+
+pub fn draw_card(deck: Deck) -> Result(#(Deck, Card), Nil) {
+  case deck.cards {
+    [first, ..rest] -> Ok(#(Deck(rest), first))
+    _ -> Error(Nil)
   }
 }

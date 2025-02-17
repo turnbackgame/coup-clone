@@ -1,77 +1,194 @@
-import coup/coup
+import coup
+import coup/game.{type Game}
 import gleam/bool
-import gleam/deque.{type Deque}
-import gleam/list
+import gleam/erlang/process.{type Subject}
+import gleam/function
 import gleam/otp/actor
+import gleam/result
+import lib/just
+import lib/message
+import lib/ordered_dict as dict
 
-pub type Lobby {
-  Lobby(id: String, host_id: String, users: Deque(coup.User))
+const timeout = 100
+
+pub type Lobby =
+  Subject(Message)
+
+pub type Message {
+  Message(ctx: coup.Context, command: Command)
+}
+
+pub type Command {
+  Join(reply: Subject(Result(Nil, coup.Error)), name: String)
+  Leave
+  StartGame(reply: Subject(Result(Game, coup.Error)))
+}
+
+type State {
+  State(
+    id: String,
+    users: dict.OrderedDict(coup.Context, User),
+    host_id: String,
+  )
+}
+
+type User {
+  User(ctx: coup.Context, name: String)
 }
 
 pub fn new(id: String) -> Lobby {
-  Lobby(id:, host_id: "", users: deque.new())
-}
-
-/// Add user to the lobby.
-/// If more than 6 users in the lobby, returns Error(Nil).
-/// If only one user in the lobby, set host status to the user.
-pub fn add_user(lobby: Lobby, user: coup.User) -> Result(Lobby, Nil) {
-  let users =
-    lobby.users
-    |> deque.push_back(user)
-    |> deque.to_list
-
-  let users_count = list.length(users)
-
-  use <- bool.lazy_guard(users_count > 6, fn() {
-    coup.SendError("the lobby is full")
-    |> actor.send(user.subject, _)
-    Error(Nil)
-  })
-
-  let host_id = {
-    use <- bool.guard(users_count == 1, user.id)
-    lobby.host_id
+  let init = fn() {
+    let subject = process.new_subject()
+    let selector =
+      process.new_selector()
+      |> process.selecting(subject, function.identity)
+    let lobby = State(id:, users: dict.new(), host_id: "")
+    actor.Ready(lobby, selector)
   }
 
-  users
-  |> list.each(fn(u) {
-    case u == user {
-      True -> coup.LobbyInit(id: lobby.id, user_id: u.id, host_id:, users:)
-      False -> coup.LobbyUpdatedUsers(host_id:, users:)
+  let loop = fn(msg: Message, lobby: State) {
+    let ctx = msg.ctx
+    let user = case lobby.users |> dict.get(ctx) {
+      Ok(user) -> user
+      Error(_) -> User(ctx: ctx, name: "")
     }
-    |> actor.send(u.subject, _)
-  })
-
-  Ok(Lobby(..lobby, host_id:, users: deque.from_list(users)))
-}
-
-/// Remove user from the lobby.
-/// If no users left in the lobby, returns Error(Nil).
-/// If the user is the host, transfer host status to other user.
-pub fn remove_user(lobby: Lobby, user: coup.User) -> Result(Lobby, Nil) {
-  let users =
-    lobby.users
-    |> deque.to_list
-    |> list.filter(fn(u) { u != user })
-
-  use <- bool.guard(list.is_empty(users), Error(Nil))
-
-  let host_id = {
-    use <- bool.guard(user.id != lobby.host_id, lobby.host_id)
-    let assert Ok(first) = list.first(users)
-    first.id
+    handle_command(msg.command, lobby, user)
   }
 
-  users
-  |> list.each(fn(u) {
-    coup.LobbyUpdatedUsers(host_id:, users:)
-    |> actor.send(u.subject, _)
-  })
-
-  Ok(Lobby(..lobby, host_id:, users: deque.from_list(users)))
+  let assert Ok(subject) =
+    actor.start_spec(actor.Spec(init:, init_timeout: timeout, loop:))
+  subject
 }
 
-pub fn is_user_host(lobby: Lobby, user: coup.User) -> Bool {
-  lobby.host_id == user.id
+pub fn join(
+  lobby: Lobby,
+  ctx: coup.Context,
+  name: String,
+) -> Result(Nil, coup.Error) {
+  use reply <- actor.call(lobby, _, timeout)
+  Message(ctx, Join(reply, name))
+}
+
+pub fn leave(lobby: Lobby, ctx: coup.Context) {
+  actor.send(lobby, Message(ctx, Leave))
+}
+
+pub fn start_game(lobby: Lobby, ctx: coup.Context) -> Result(Game, coup.Error) {
+  use reply <- actor.call(lobby, _, timeout)
+  Message(ctx, StartGame(reply))
+}
+
+fn handle_command(
+  command: Command,
+  lobby: State,
+  user: User,
+) -> actor.Next(Message, State) {
+  case command {
+    Join(reply, name) -> {
+      use <- just.try(reply_error(reply, lobby, _))
+      use <- guard_lobby_full(lobby)
+
+      let user = User(..user, name:)
+      let lobby = lobby |> add_user(user) |> try_set_host(user)
+      let msg_users = lobby.users |> dict.map(user_to_message) |> dict.to_list()
+      actor.send(reply, Ok(Nil))
+
+      use u <- dict.each(lobby.users, Ok(actor.continue(lobby)))
+      case u == user {
+        True ->
+          message.LobbyInit(
+            id: lobby.id,
+            users: msg_users,
+            user_id: u.ctx.id,
+            host_id: lobby.host_id,
+          )
+        False ->
+          message.LobbyUpdatedUsers(users: msg_users, host_id: lobby.host_id)
+      }
+      |> send_user_event(u, _)
+    }
+
+    Leave -> {
+      use <- just.try(fn(_err) { actor.Stop(process.Normal) })
+      let lobby = lobby |> remove_user(user)
+      use <- guard_lobby_empty(lobby)
+
+      let lobby = lobby |> try_promote_host(user)
+      let msg_users = lobby.users |> dict.map(user_to_message) |> dict.to_list()
+
+      use u <- dict.each(lobby.users, Ok(actor.continue(lobby)))
+      message.LobbyUpdatedUsers(users: msg_users, host_id: lobby.host_id)
+      |> send_user_event(u, _)
+    }
+
+    StartGame(reply) -> {
+      use <- just.try(reply_error(reply, lobby, _))
+      let players = dict.map(lobby.users, user_to_player)
+      use game <- result.try(game.start(lobby.id, players))
+      actor.send(reply, Ok(game))
+      Ok(actor.continue(lobby))
+    }
+  }
+}
+
+fn reply_error(
+  reply: Subject(Result(a, err)),
+  state: state,
+  error: err,
+) -> actor.Next(message, state) {
+  actor.send(reply, Error(error))
+  actor.continue(state)
+}
+
+fn add_user(lobby: State, user: User) -> State {
+  State(..lobby, users: lobby.users |> dict.insert_back(user.ctx, user))
+}
+
+fn remove_user(lobby: State, user: User) -> State {
+  State(..lobby, users: lobby.users |> dict.delete(user.ctx))
+}
+
+fn send_user_event(user: User, event: message.LobbyEvent) {
+  actor.send(user.ctx.subject, message.LobbyEvent(event))
+}
+
+fn user_to_message(user: User) -> message.User {
+  message.User(id: user.ctx.id, name: user.name)
+}
+
+fn user_to_player(user: User) -> game.Player {
+  game.Player(ctx: user.ctx, name: user.name, influence: coup.new_card_set())
+}
+
+fn try_set_host(lobby: State, user: User) -> State {
+  let host_id = case lobby.host_id {
+    "" -> user.ctx.id
+    host_id -> host_id
+  }
+  State(..lobby, host_id:)
+}
+
+fn try_promote_host(lobby: State, user: User) -> State {
+  let host_id = case lobby.host_id == user.ctx.id {
+    True -> {
+      let assert Ok(first) = dict.first(lobby.users)
+      first.ctx.id
+    }
+    False -> lobby.host_id
+  }
+  State(..lobby, host_id:)
+}
+
+fn guard_lobby_full(
+  lobby: State,
+  fun: fn() -> Result(a, coup.Error),
+) -> Result(a, coup.Error) {
+  bool.guard(dict.size(lobby.users) >= 6, Error(coup.LobbyFull), fun)
+}
+
+fn guard_lobby_empty(
+  lobby: State,
+  fun: fn() -> Result(a, coup.Error),
+) -> Result(a, coup.Error) {
+  bool.guard(dict.is_empty(lobby.users), Error(coup.LobbyEmpty), fun)
 }
