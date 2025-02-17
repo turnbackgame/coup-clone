@@ -109,13 +109,13 @@ fn handle_dashboard_command(
   user: User,
 ) -> User {
   case command {
-    message.DashboardCreateLobby(name) -> {
+    message.UserCreateLobby(name) -> {
       let lobby = dashboard.create_lobby(dashboard)
       let assert Ok(_) = lobby.join(lobby, user.ctx, name)
       User(..user, lobby: Some(lobby))
     }
 
-    message.DashboardJoinLobby(id, name) -> {
+    message.UserJoinLobby(id, name) -> {
       use <- just.try(send_user_error(user, _))
       use lobby <- result.try(dashboard |> dashboard.get_lobby(id))
       use _ <- result.try(lobby.join(lobby, user.ctx, name))
@@ -130,12 +130,12 @@ fn handle_lobby_command(
   user: User,
 ) -> User {
   case command {
-    message.LobbyLeave -> {
+    message.UserLeaveLobby -> {
       lobby.leave(lobby, user.ctx)
       User(..user, lobby: None)
     }
 
-    message.LobbyStartGame -> {
+    message.UserStartGame -> {
       use <- just.try(send_user_error(user, _))
       use game <- result.try(lobby.start_game(lobby, user.ctx))
       Ok(User(..user, game: Some(game)))

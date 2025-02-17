@@ -95,13 +95,13 @@ pub type Command {
 }
 
 pub type DashboardCommand {
-  DashboardCreateLobby(name: String)
-  DashboardJoinLobby(id: String, name: String)
+  UserCreateLobby(name: String)
+  UserJoinLobby(id: String, name: String)
 }
 
 pub type LobbyCommand {
-  LobbyLeave
-  LobbyStartGame
+  UserLeaveLobby
+  UserStartGame
 }
 
 pub type GameCommand

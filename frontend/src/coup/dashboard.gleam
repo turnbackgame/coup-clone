@@ -37,7 +37,7 @@ pub fn update(
       let enter = bool.and(key_pressed == "Enter", dashboard.name != "")
       use <- bool.guard(!enter, #(dashboard, effect.none()))
       let effect =
-        message.DashboardCreateLobby(name: dashboard.name)
+        message.UserCreateLobby(name: dashboard.name)
         |> message.DashboardCommand
         |> json.encode_command
         |> ws.send(dashboard.socket, _)
@@ -50,7 +50,7 @@ pub fn update(
 
       io.debug("try to join lobby: " <> id)
       let effect =
-        message.DashboardJoinLobby(id:, name: dashboard.name)
+        message.UserJoinLobby(id:, name: dashboard.name)
         |> message.DashboardCommand
         |> json.encode_command
         |> ws.send(dashboard.socket, _)

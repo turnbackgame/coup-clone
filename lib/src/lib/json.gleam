@@ -156,14 +156,14 @@ pub fn dashboard_command_decoder(
   command: String,
 ) -> Decoder(message.DashboardCommand) {
   case command {
-    "dashboard/create_lobby" -> {
+    "dashboard/user_create_lobby" -> {
       use name <- decode.field("name", decode.string)
-      decode.success(message.DashboardCreateLobby(name))
+      decode.success(message.UserCreateLobby(name))
     }
-    "dashboard/join_lobby" -> {
+    "dashboard/user_join_lobby" -> {
       use id <- decode.field("id", decode.string)
       use name <- decode.field("name", decode.string)
-      decode.success(message.DashboardJoinLobby(id, name))
+      decode.success(message.UserJoinLobby(id, name))
     }
     _ -> todo
   }
@@ -171,16 +171,16 @@ pub fn dashboard_command_decoder(
 
 pub fn dashboard_command_encoder(command: message.DashboardCommand) -> Encoder {
   case command {
-    message.DashboardCreateLobby(name) -> {
+    message.UserCreateLobby(name) -> {
       [
-        #(cmd, json.string("dashboard/create_lobby")),
+        #(cmd, json.string("dashboard/user_create_lobby")),
         #("name", json.string(name)),
       ]
       |> json.object
     }
-    message.DashboardJoinLobby(id, name) -> {
+    message.UserJoinLobby(id, name) -> {
       [
-        #(cmd, json.string("dashboard/join_lobby")),
+        #(cmd, json.string("dashboard/user_join_lobby")),
         #("id", json.string(id)),
         #("name", json.string(name)),
       ]
@@ -191,11 +191,11 @@ pub fn dashboard_command_encoder(command: message.DashboardCommand) -> Encoder {
 
 pub fn lobby_command_decoder(command: String) -> Decoder(message.LobbyCommand) {
   case command {
-    "lobby/leave" -> {
-      decode.success(message.LobbyLeave)
+    "lobby/user_leave_lobby" -> {
+      decode.success(message.UserLeaveLobby)
     }
-    "lobby/start_game" -> {
-      decode.success(message.LobbyStartGame)
+    "lobby/user_start_game" -> {
+      decode.success(message.UserStartGame)
     }
     _ -> todo
   }
@@ -203,12 +203,12 @@ pub fn lobby_command_decoder(command: String) -> Decoder(message.LobbyCommand) {
 
 pub fn lobby_command_encoder(command: message.LobbyCommand) -> Encoder {
   case command {
-    message.LobbyLeave -> {
-      [#(cmd, json.string("lobby/leave"))]
+    message.UserLeaveLobby -> {
+      [#(cmd, json.string("lobby/user_leave_lobby"))]
       |> json.object
     }
-    message.LobbyStartGame -> {
-      [#(cmd, json.string("lobby/start_game"))]
+    message.UserStartGame -> {
+      [#(cmd, json.string("lobby/user_start_game"))]
       |> json.object
     }
   }

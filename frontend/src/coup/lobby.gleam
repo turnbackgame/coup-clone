@@ -31,7 +31,7 @@ pub fn update(lobby: Lobby, command: Command) -> #(Lobby, Effect(Command)) {
   case command {
     UserLeavedLobby -> {
       let effect =
-        message.LobbyLeave
+        message.UserLeaveLobby
         |> message.LobbyCommand
         |> json.encode_command
         |> ws.send(lobby.socket, _)
@@ -40,7 +40,7 @@ pub fn update(lobby: Lobby, command: Command) -> #(Lobby, Effect(Command)) {
 
     UserStartedGame -> {
       let effect =
-        message.LobbyStartGame
+        message.UserStartGame
         |> message.LobbyCommand
         |> json.encode_command
         |> ws.send(lobby.socket, _)
