@@ -1,5 +1,6 @@
 import gleam/bool
 import gleam/list
+import lib/ids.{type ID}
 import lib/json
 import lib/message
 import lustre/effect.{type Effect}
@@ -11,7 +12,7 @@ import sketch/lustre/element/html
 pub type Lobby {
   Lobby(
     socket: ws.WebSocket,
-    id: String,
+    id: ID(ids.Lobby),
     users: List(message.User),
     user_id: String,
     host_id: String,
@@ -24,7 +25,7 @@ pub type Command {
 }
 
 pub fn new(socket: ws.WebSocket) -> Lobby {
-  Lobby(socket:, id: "", users: [], user_id: "", host_id: "")
+  Lobby(socket:, id: ids.from_string(""), users: [], user_id: "", host_id: "")
 }
 
 pub fn update(lobby: Lobby, command: Command) -> #(Lobby, Effect(Command)) {
@@ -66,7 +67,7 @@ pub fn view(lobby: Lobby) -> Element(Command) {
 
 pub fn init(
   lobby: Lobby,
-  id: String,
+  id: ID(ids.Lobby),
   users: List(message.User),
   user_id: String,
   host_id: String,

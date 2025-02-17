@@ -1,5 +1,5 @@
 import gleam/bool
-import gleam/io
+import lib/ids.{type ID}
 import lib/json
 import lib/message
 import lustre/attribute
@@ -16,7 +16,7 @@ pub type Dashboard {
 pub type Command {
   UserUpdatedName(name: String)
   UserCreatedLobby(key_pressed: String)
-  UserJoinedLobby(key_pressed: String, id: String)
+  UserJoinedLobby(key_pressed: String, id: ID(ids.Lobby))
 }
 
 pub fn new(socket: ws.WebSocket) -> Dashboard {
@@ -48,7 +48,6 @@ pub fn update(
       let enter = bool.and(key_pressed == "Enter", dashboard.name != "")
       use <- bool.guard(!enter, #(dashboard, effect.none()))
 
-      io.debug("try to join lobby: " <> id)
       let effect =
         message.UserJoinLobby(id:, name: dashboard.name)
         |> message.DashboardCommand
@@ -70,7 +69,10 @@ pub fn view(_dashboard: Dashboard) -> Element(Command) {
   ])
 }
 
-pub fn view_invitation(_dashboard: Dashboard, id: String) -> Element(Command) {
+pub fn view_invitation(
+  _dashboard: Dashboard,
+  id: ID(ids.Lobby),
+) -> Element(Command) {
   html.div_([], [
     html.h1_([], [html.text("Invitation")]),
     html.input_([

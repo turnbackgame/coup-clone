@@ -5,6 +5,7 @@ import gleam/erlang/process.{type Subject}
 import gleam/function
 import gleam/otp/actor
 import gleam/result
+import lib/ids.{type ID}
 import lib/just
 import lib/message
 import lib/ordered_dict as dict
@@ -26,7 +27,7 @@ pub type Command {
 
 type State {
   State(
-    id: String,
+    id: ID(ids.Lobby),
     users: dict.OrderedDict(coup.Context, User),
     host_id: String,
   )
@@ -36,7 +37,7 @@ type User {
   User(ctx: coup.Context, name: String)
 }
 
-pub fn new(id: String) -> Lobby {
+pub fn new(id: ID(ids.Lobby)) -> Lobby {
   let init = fn() {
     let subject = process.new_subject()
     let selector =

@@ -2,6 +2,7 @@ import gleam/dynamic/decode
 import gleam/json
 import gleam/list
 import gleam/string
+import lib/ids
 import lib/message
 
 type Decoder(a) =
@@ -53,7 +54,12 @@ fn lobby_event_decoder(event: String) -> Decoder(message.LobbyEvent) {
       use users <- decode.field("users", decode.list(user_decoder()))
       use user_id <- decode.field("user_id", decode.string)
       use host_id <- decode.field("host_id", decode.string)
-      decode.success(message.LobbyInit(id:, users:, user_id:, host_id:))
+      decode.success(message.LobbyInit(
+        id: ids.from_string(id),
+        users:,
+        user_id:,
+        host_id:,
+      ))
     }
     "lobby/updated_users" -> {
       use users <- decode.field("users", decode.list(user_decoder()))
@@ -69,7 +75,7 @@ fn lobby_event_encoder(event: message.LobbyEvent) -> Encoder {
     message.LobbyInit(id, users, user_id, host_id) -> {
       [
         #(evt, json.string("lobby/init")),
-        #("id", json.string(id)),
+        #("id", json.string(ids.to_string(id))),
         #("users", json.array(users, user_encoder)),
         #("user_id", json.string(user_id)),
         #("host_id", json.string(host_id)),
@@ -94,7 +100,12 @@ fn game_event_decoder(event: String) -> Decoder(message.GameEvent) {
       use players <- decode.field("players", decode.list(player_decoder()))
       use player_id <- decode.field("player_id", decode.string)
       use deck_count <- decode.field("deck_count", decode.int)
-      decode.success(message.GameInit(id:, players:, player_id:, deck_count:))
+      decode.success(message.GameInit(
+        id: ids.from_string(id),
+        players:,
+        player_id:,
+        deck_count:,
+      ))
     }
     _ -> todo
   }
@@ -109,7 +120,7 @@ fn game_event_encoder(event: message.GameEvent) -> Encoder {
 
       [
         #(evt, json.string("game/init")),
-        #("id", json.string(id)),
+        #("id", json.string(ids.to_string(id))),
         #("players", json.array(players, player_encoder(_, player_id))),
         #("player_id", json.string(player_id)),
         #("deck_count", json.int(deck_count)),
@@ -163,7 +174,7 @@ pub fn dashboard_command_decoder(
     "dashboard/user_join_lobby" -> {
       use id <- decode.field("id", decode.string)
       use name <- decode.field("name", decode.string)
-      decode.success(message.UserJoinLobby(id, name))
+      decode.success(message.UserJoinLobby(ids.from_string(id), name))
     }
     _ -> todo
   }
@@ -181,7 +192,7 @@ pub fn dashboard_command_encoder(command: message.DashboardCommand) -> Encoder {
     message.UserJoinLobby(id, name) -> {
       [
         #(cmd, json.string("dashboard/user_join_lobby")),
-        #("id", json.string(id)),
+        #("id", json.string(ids.to_string(id))),
         #("name", json.string(name)),
       ]
       |> json.object

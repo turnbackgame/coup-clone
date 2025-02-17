@@ -6,7 +6,7 @@ import gleam/function
 import gleam/option.{Some}
 import gleam/otp/actor
 import gleam/result
-import lib/ids
+import lib/ids.{type ID}
 
 const timeout = 100
 
@@ -14,12 +14,15 @@ pub type Dashboard =
   Subject(Message)
 
 type State {
-  State(lobbies: dict.Dict(String, Lobby), selector: process.Selector(Message))
+  State(
+    lobbies: dict.Dict(ID(ids.Lobby), Lobby),
+    selector: process.Selector(Message),
+  )
 }
 
 pub type Message {
-  Tidy(process.ProcessDown, id: String)
-  GetLobby(reply: Subject(Result(Lobby, coup.Error)), id: String)
+  DeleteLobby(process.ProcessDown, id: ID(ids.Lobby))
+  GetLobby(reply: Subject(Result(Lobby, coup.Error)), id: ID(ids.Lobby))
   CreateLobby(reply: Subject(Lobby))
 }
 
@@ -42,13 +45,16 @@ pub fn create_lobby(dashboard: Dashboard) -> Lobby {
   actor.call(dashboard, CreateLobby, timeout)
 }
 
-pub fn get_lobby(dashboard: Dashboard, id: String) -> Result(Lobby, coup.Error) {
+pub fn get_lobby(
+  dashboard: Dashboard,
+  id: ID(ids.Lobby),
+) -> Result(Lobby, coup.Error) {
   actor.call(dashboard, GetLobby(_, id), timeout)
 }
 
 fn loop(msg: Message, dashboard: State) -> actor.Next(Message, State) {
   case msg {
-    Tidy(_, id) -> {
+    DeleteLobby(_, id) -> {
       State(..dashboard, lobbies: dashboard.lobbies |> dict.delete(id))
       |> actor.continue
     }
@@ -62,7 +68,7 @@ fn loop(msg: Message, dashboard: State) -> actor.Next(Message, State) {
     }
 
     CreateLobby(reply) -> {
-      let id = ids.generate(8)
+      let id = ids.generate(8) |> ids.from_string()
       let lobby = lobby.new(id)
 
       let monitor =
@@ -72,7 +78,7 @@ fn loop(msg: Message, dashboard: State) -> actor.Next(Message, State) {
 
       let selector =
         dashboard.selector
-        |> process.selecting_process_down(monitor, Tidy(_, id))
+        |> process.selecting_process_down(monitor, DeleteLobby(_, id))
 
       let dashboard =
         State(lobbies: dict.insert(dashboard.lobbies, id, lobby), selector:)

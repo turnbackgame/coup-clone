@@ -4,6 +4,7 @@ import coup/lobby
 import gleam/io
 import gleam/option.{type Option, None, Some}
 import gleam/uri
+import lib/ids.{type ID}
 import lib/json
 import lib/just
 import lib/message
@@ -40,7 +41,7 @@ pub fn update(model: Model, msg: Message) -> #(Model, Effect(Message)) {
           Error(_) -> DashboardPage(dashboard)
           Ok(uri) ->
             case uri.path_segments(uri.path) {
-              [id] -> InvitationPage(dashboard, id)
+              [id] -> InvitationPage(dashboard, ids.from_string(id))
               _ -> DashboardPage(dashboard)
             }
         }
@@ -99,7 +100,7 @@ pub fn update(model: Model, msg: Message) -> #(Model, Effect(Message)) {
 
 pub type Page {
   DashboardPage(dashboard.Dashboard)
-  InvitationPage(dashboard.Dashboard, id: String)
+  InvitationPage(dashboard.Dashboard, id: ID(ids.Lobby))
   LobbyPage(lobby.Lobby)
   GamePage(game.Game)
 }
@@ -158,7 +159,7 @@ fn handle_lobby_event(
     message.LobbyInit(id, users, user_id, host_id) -> {
       let lobby = lobby |> lobby.init(id, users, user_id, host_id)
       let model = Model(page: Some(LobbyPage(lobby)))
-      #(model, modem.push("/" <> lobby.id, None, None))
+      #(model, modem.push("/" <> ids.to_string(lobby.id), None, None))
     }
     message.LobbyUpdatedUsers(users, host_id) -> {
       let lobby = lobby |> lobby.update_users(users, host_id)

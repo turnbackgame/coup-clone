@@ -1,3 +1,5 @@
+import lib/ids.{type ID}
+
 pub type User {
   User(id: String, name: String)
 }
@@ -75,13 +77,18 @@ pub type Event {
 }
 
 pub type LobbyEvent {
-  LobbyInit(id: String, users: List(User), user_id: String, host_id: String)
+  LobbyInit(
+    id: ID(ids.Lobby),
+    users: List(User),
+    user_id: String,
+    host_id: String,
+  )
   LobbyUpdatedUsers(users: List(User), host_id: String)
 }
 
 pub type GameEvent {
   GameInit(
-    id: String,
+    id: ID(ids.Game),
     players: List(Player),
     player_id: String,
     deck_count: Int,
@@ -96,7 +103,7 @@ pub type Command {
 
 pub type DashboardCommand {
   UserCreateLobby(name: String)
-  UserJoinLobby(id: String, name: String)
+  UserJoinLobby(id: ID(ids.Lobby), name: String)
 }
 
 pub type LobbyCommand {

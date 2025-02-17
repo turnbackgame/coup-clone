@@ -4,6 +4,7 @@ import gleam/erlang/process.{type Subject}
 import gleam/function
 import gleam/otp/actor
 import gleam/result
+import lib/ids.{type ID}
 import lib/just
 import lib/message
 import lib/ordered_dict as dict
@@ -23,7 +24,7 @@ pub type Command
 
 type State {
   State(
-    id: String,
+    id: ID(ids.Game),
     players: dict.OrderedDict(coup.Context, Player),
     turn: Int,
     court: coup.Deck,
@@ -35,7 +36,7 @@ pub type Player {
 }
 
 pub fn start(
-  id: String,
+  id: ID(ids.Lobby),
   players: dict.OrderedDict(coup.Context, Player),
 ) -> Result(Game, coup.Error) {
   use <- bool.guard(
@@ -44,7 +45,7 @@ pub fn start(
   )
 
   let game =
-    State(id:, players:, turn: 0, court: coup.new_deck())
+    State(id: ids.map(id), players:, turn: 0, court: coup.new_deck())
     |> shuffle_deck()
     |> initial_deal()
 
