@@ -2,6 +2,7 @@ import gleam/dynamic/decode
 import gleam/json
 import gleam/list
 import gleam/string
+import lib/coup
 import lib/coup/ids
 import lib/coup/message
 
@@ -19,7 +20,7 @@ pub fn decode_event(buf: String) -> Result(message.Event, json.DecodeError) {
     case string.split(event, "/") {
       ["error"] -> {
         use err <- decode.field("msg", decode.string)
-        decode.success(message.ErrorEvent(err))
+        decode.success(message.ErrorEvent(coup.error_from_string(err)))
       }
       ["lobby", ..] -> {
         use lobby_event <- decode.then(lobby_event_decoder(event))
@@ -38,7 +39,10 @@ pub fn decode_event(buf: String) -> Result(message.Event, json.DecodeError) {
 pub fn encode_event(event: message.Event) -> String {
   let encoder = case event {
     message.ErrorEvent(err) -> {
-      [#(evt, json.string("error")), #("msg", json.string(err))]
+      [
+        #(evt, json.string("error")),
+        #("msg", json.string(coup.error_to_string(err))),
+      ]
       |> json.object
     }
     message.LobbyEvent(event) -> lobby_event_encoder(event)
@@ -247,49 +251,53 @@ fn user_encoder(user: message.User) -> Encoder {
 fn player_decoder() -> Decoder(message.Player) {
   use id <- decode.field("id", decode.string)
   use name <- decode.field("name", decode.string)
-  use influence <- decode.field("influence", card_set_decoder())
-  decode.success(message.Player(id:, name:, influence:))
+  use influences <- decode.field("influences", influences_decoder())
+  use coin <- decode.field("coin", decode.int)
+  decode.success(message.Player(id:, name:, influences:, coin:))
 }
 
 fn player_encoder(player: message.Player, player_id: String) -> Encoder {
+  let reveal = player.id == player_id
   [
     #("id", json.string(player.id)),
     #("name", json.string(player.name)),
-    #("influence", card_set_encoder(player.influence, player.id == player_id)),
+    #("influences", influences_encoder(player.influences, reveal)),
+    #("coin", json.int(player.coin)),
   ]
   |> json.object
 }
 
-fn card_decoder() -> Decoder(message.Card) {
-  use card <- decode.then(decode.string)
-  message.string_to_card(card)
+fn influence_decoder() -> Decoder(coup.Influence) {
+  use influence <- decode.then(decode.string)
+  coup.influence_from_string(influence)
   |> decode.success
 }
 
-fn card_encoder(card: message.Card, reveal: Bool) -> Encoder {
-  case card {
-    message.FaceUp(..) -> card
-    message.FaceDown(..) -> {
+fn influence_encoder(influence: coup.Influence, reveal: Bool) -> Encoder {
+  case influence {
+    coup.FaceUp(..) -> influence
+    coup.FaceDown(..) -> {
       case reveal {
-        True -> card
-        False -> message.FaceDown(message.UnknownCharacter)
+        True -> influence
+        False -> coup.FaceDown(coup.UnknownCharacter)
       }
     }
   }
-  |> message.card_to_string
+  |> coup.influence_to_string
   |> json.string
 }
 
-fn card_set_decoder() -> Decoder(message.CardSet) {
-  use left <- decode.field("left", card_decoder())
-  use right <- decode.field("right", card_decoder())
-  decode.success(message.CardSet(left:, right:))
+fn influences_decoder() -> Decoder(coup.Influences) {
+  use left <- decode.field("left", influence_decoder())
+  use right <- decode.field("right", influence_decoder())
+  decode.success(coup.Influences(left, right))
 }
 
-fn card_set_encoder(card_set: message.CardSet, reveal: Bool) -> Encoder {
+fn influences_encoder(influences: coup.Influences, reveal: Bool) -> Encoder {
+  let coup.Influences(left, right) = influences
   [
-    #("left", card_encoder(card_set.left, reveal)),
-    #("right", card_encoder(card_set.right, reveal)),
+    #("left", influence_encoder(left, reveal)),
+    #("right", influence_encoder(right, reveal)),
   ]
   |> json.object
 }

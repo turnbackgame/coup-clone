@@ -1,12 +1,14 @@
-import coup
+import coup/context.{type Context}
 import coup/game.{type Game}
 import gleam/bool
 import gleam/erlang/process.{type Subject}
 import gleam/function
 import gleam/otp/actor
 import gleam/result
+import lib/coup
 import lib/coup/ids.{type ID}
 import lib/coup/message
+import lib/generator
 import lib/just
 import lib/ordered_dict as dict
 
@@ -16,7 +18,7 @@ pub type Lobby =
   Subject(Message)
 
 pub type Message {
-  Message(ctx: coup.Context, command: Command)
+  Message(ctx: Context, command: Command)
 }
 
 pub type Command {
@@ -26,15 +28,7 @@ pub type Command {
 }
 
 type State {
-  State(
-    id: ID(ids.Lobby),
-    users: dict.OrderedDict(coup.Context, User),
-    host_id: String,
-  )
-}
-
-type User {
-  User(ctx: coup.Context, name: String)
+  State(id: ID(ids.Lobby), users: coup.Users(Context), host_id: String)
 }
 
 pub fn new(id: ID(ids.Lobby)) -> Lobby {
@@ -51,7 +45,7 @@ pub fn new(id: ID(ids.Lobby)) -> Lobby {
     let ctx = msg.ctx
     let user = case lobby.users |> dict.get(ctx) {
       Ok(user) -> user
-      Error(_) -> User(ctx: ctx, name: "")
+      Error(_) -> coup.User(ctx: ctx, id: "", name: "")
     }
     handle_command(msg.command, lobby, user)
   }
@@ -61,20 +55,16 @@ pub fn new(id: ID(ids.Lobby)) -> Lobby {
   subject
 }
 
-pub fn join(
-  lobby: Lobby,
-  ctx: coup.Context,
-  name: String,
-) -> Result(Nil, coup.Error) {
+pub fn join(lobby: Lobby, ctx: Context, name: String) -> Result(Nil, coup.Error) {
   use reply <- actor.call(lobby, _, timeout)
   Message(ctx, Join(reply, name))
 }
 
-pub fn leave(lobby: Lobby, ctx: coup.Context) {
+pub fn leave(lobby: Lobby, ctx: Context) {
   actor.send(lobby, Message(ctx, Leave))
 }
 
-pub fn start_game(lobby: Lobby, ctx: coup.Context) -> Result(Game, coup.Error) {
+pub fn start_game(lobby: Lobby, ctx: Context) -> Result(Game, coup.Error) {
   use reply <- actor.call(lobby, _, timeout)
   Message(ctx, StartGame(reply))
 }
@@ -82,16 +72,16 @@ pub fn start_game(lobby: Lobby, ctx: coup.Context) -> Result(Game, coup.Error) {
 fn handle_command(
   command: Command,
   lobby: State,
-  user: User,
+  user: coup.User(Context),
 ) -> actor.Next(Message, State) {
   case command {
     Join(reply, name) -> {
       use <- just.try(reply_error(reply, lobby, _))
       use <- guard_lobby_full(lobby)
 
-      let user = User(..user, name:)
+      let user = coup.User(..user, id: generator.generate(5), name:)
       let lobby = lobby |> add_user(user) |> try_set_host(user)
-      let msg_users = lobby.users |> dict.map(user_to_message) |> dict.to_list()
+      let users = lobby.users |> dict.map(message.from_user) |> dict.to_list()
       actor.send(reply, Ok(Nil))
 
       use u <- dict.each(lobby.users, Ok(actor.continue(lobby)))
@@ -99,12 +89,11 @@ fn handle_command(
         True ->
           message.LobbyInit(
             id: lobby.id,
-            users: msg_users,
-            user_id: u.ctx.id,
+            users: users,
+            user_id: u.id,
             host_id: lobby.host_id,
           )
-        False ->
-          message.LobbyUpdatedUsers(users: msg_users, host_id: lobby.host_id)
+        False -> message.LobbyUpdatedUsers(users:, host_id: lobby.host_id)
       }
       |> send_user_event(u, _)
     }
@@ -115,17 +104,16 @@ fn handle_command(
       use <- guard_lobby_empty(lobby)
 
       let lobby = lobby |> try_promote_host(user)
-      let msg_users = lobby.users |> dict.map(user_to_message) |> dict.to_list()
+      let users = lobby.users |> dict.map(message.from_user) |> dict.to_list()
 
       use u <- dict.each(lobby.users, Ok(actor.continue(lobby)))
-      message.LobbyUpdatedUsers(users: msg_users, host_id: lobby.host_id)
+      message.LobbyUpdatedUsers(users:, host_id: lobby.host_id)
       |> send_user_event(u, _)
     }
 
     StartGame(reply) -> {
       use <- just.try(reply_error(reply, lobby, _))
-      let players = dict.map(lobby.users, user_to_player)
-      use game <- result.try(game.start(lobby.id, players))
+      use game <- result.try(game.start(lobby.id, lobby.users))
       actor.send(reply, Ok(game))
       Ok(actor.continue(lobby))
     }
@@ -141,39 +129,31 @@ fn reply_error(
   actor.continue(state)
 }
 
-fn add_user(lobby: State, user: User) -> State {
+fn add_user(lobby: State, user: coup.User(Context)) -> State {
   State(..lobby, users: lobby.users |> dict.insert_back(user.ctx, user))
 }
 
-fn remove_user(lobby: State, user: User) -> State {
+fn remove_user(lobby: State, user: coup.User(Context)) -> State {
   State(..lobby, users: lobby.users |> dict.delete(user.ctx))
 }
 
-fn send_user_event(user: User, event: message.LobbyEvent) {
+fn send_user_event(user: coup.User(Context), event: message.LobbyEvent) {
   actor.send(user.ctx.subject, message.LobbyEvent(event))
 }
 
-fn user_to_message(user: User) -> message.User {
-  message.User(id: user.ctx.id, name: user.name)
-}
-
-fn user_to_player(user: User) -> game.Player {
-  game.Player(ctx: user.ctx, name: user.name, influence: coup.new_card_set())
-}
-
-fn try_set_host(lobby: State, user: User) -> State {
+fn try_set_host(lobby: State, user: coup.User(Context)) -> State {
   let host_id = case lobby.host_id {
-    "" -> user.ctx.id
+    "" -> user.id
     host_id -> host_id
   }
   State(..lobby, host_id:)
 }
 
-fn try_promote_host(lobby: State, user: User) -> State {
-  let host_id = case lobby.host_id == user.ctx.id {
+fn try_promote_host(lobby: State, user: coup.User(Context)) -> State {
+  let host_id = case lobby.host_id == user.id {
     True -> {
       let assert Ok(first) = dict.first(lobby.users)
-      first.ctx.id
+      first.id
     }
     False -> lobby.host_id
   }

@@ -1,6 +1,7 @@
 import gleam/int
 import gleam/list
 import gleam/string
+import lib/coup
 import lib/coup/ids.{type ID}
 import lib/coup/message
 import lustre/effect.{type Effect}
@@ -64,8 +65,9 @@ fn view_board(game: Game) -> Element(Command) {
 }
 
 fn view_player(player: message.Player) -> Element(Command) {
-  let left_text = message.card_to_string(player.influence.left)
-  let right_text = message.card_to_string(player.influence.right)
+  let coup.Influences(left, right) = player.influences
+  let left_text = coup.influence_to_string(left)
+  let right_text = coup.influence_to_string(right)
   html.text(player.name <> ": " <> left_text <> ", " <> right_text)
 }
 

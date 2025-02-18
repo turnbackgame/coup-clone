@@ -1,77 +1,29 @@
+import lib/coup
 import lib/coup/ids.{type ID}
 
 pub type User {
   User(id: String, name: String)
 }
 
+pub fn from_user(user: coup.User(context)) -> User {
+  User(id: user.id, name: user.name)
+}
+
 pub type Player {
-  Player(id: String, name: String, influence: CardSet)
+  Player(id: String, name: String, influences: coup.Influences, coin: Int)
 }
 
-pub type Character {
-  Duke
-  Assassin
-  Contessa
-  Captain
-  Ambassador
-  UnknownCharacter
-}
-
-pub fn string_to_character(character: String) -> Character {
-  case character {
-    "duke" -> Duke
-    "assassin" -> Assassin
-    "contessa" -> Contessa
-    "captain" -> Captain
-    "ambassador" -> Ambassador
-    _ -> UnknownCharacter
-  }
-}
-
-pub fn character_to_string(character: Character) -> String {
-  case character {
-    Duke -> "duke"
-    Assassin -> "assassin"
-    Contessa -> "contessa"
-    Captain -> "captain"
-    Ambassador -> "ambassador"
-    UnknownCharacter -> "-"
-  }
-}
-
-pub type Card {
-  FaceDown(Character)
-  FaceUp(Character)
-}
-
-pub fn string_to_card(card: String) -> Card {
-  case card {
-    "face-down:" <> character ->
-      string_to_character(character)
-      |> FaceDown
-    character ->
-      string_to_character(character)
-      |> FaceUp
-  }
-}
-
-pub fn card_to_string(card: Card) -> String {
-  case card {
-    FaceDown(character) -> "face-down:" <> character_to_string(character)
-    FaceUp(character) -> character_to_string(character)
-  }
-}
-
-pub type CardSet {
-  CardSet(left: Card, right: Card)
-}
-
-pub type Deck {
-  Deck(cards: List(Card))
+pub fn from_player(player: coup.Player(context)) -> Player {
+  Player(
+    id: player.id,
+    name: player.name,
+    influences: player.influences,
+    coin: player.coin,
+  )
 }
 
 pub type Event {
-  ErrorEvent(String)
+  ErrorEvent(coup.Error)
   LobbyEvent(LobbyEvent)
   GameEvent(GameEvent)
 }

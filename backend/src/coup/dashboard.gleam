@@ -1,4 +1,3 @@
-import coup
 import coup/lobby.{type Lobby}
 import gleam/dict
 import gleam/erlang/process.{type Subject}
@@ -6,6 +5,7 @@ import gleam/function
 import gleam/option.{Some}
 import gleam/otp/actor
 import gleam/result
+import lib/coup
 import lib/coup/ids.{type ID}
 import lib/generator
 

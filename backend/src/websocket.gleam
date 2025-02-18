@@ -1,4 +1,4 @@
-import coup
+import coup/context
 import coup/dashboard.{type Dashboard}
 import coup/game.{type Game}
 import coup/lobby.{type Lobby}
@@ -9,6 +9,7 @@ import gleam/http/response.{type Response}
 import gleam/option.{type Option, None, Some}
 import gleam/otp/actor
 import gleam/result
+import lib/coup
 import lib/coup/json
 import lib/coup/message
 import lib/just
@@ -16,7 +17,7 @@ import mist.{type Connection, type ResponseData}
 
 pub type User {
   User(
-    ctx: coup.Context,
+    ctx: context.Context,
     dashboard: Dashboard,
     lobby: Option(Lobby),
     game: Option(Game),
@@ -24,9 +25,7 @@ pub type User {
 }
 
 fn send_user_error(user: User, err: coup.Error) -> User {
-  coup.error_to_string(err)
-  |> message.ErrorEvent
-  |> actor.send(user.ctx.subject, _)
+  actor.send(user.ctx.subject, message.ErrorEvent(err))
   user
 }
 
@@ -35,7 +34,7 @@ pub fn handle_request(
   dashboard: Dashboard,
 ) -> Response(ResponseData) {
   let on_init = fn(_conn) {
-    let ctx = coup.new_context()
+    let ctx = context.new()
     let selector =
       process.new_selector()
       |> process.selecting(ctx.subject, function.identity)
