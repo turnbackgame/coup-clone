@@ -9,9 +9,9 @@ import gleam/http/response.{type Response}
 import gleam/option.{type Option, None, Some}
 import gleam/otp/actor
 import gleam/result
-import lib/json
+import lib/coup/json
+import lib/coup/message
 import lib/just
-import lib/message
 import mist.{type Connection, type ResponseData}
 
 pub type User {

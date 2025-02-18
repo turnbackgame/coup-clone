@@ -1,8 +1,8 @@
 import gleam/int
 import gleam/list
 import gleam/string
-import lib/ids.{type ID}
-import lib/message
+import lib/coup/ids.{type ID}
+import lib/coup/message
 import lustre/effect.{type Effect}
 import lustre_websocket as ws
 import sketch/css

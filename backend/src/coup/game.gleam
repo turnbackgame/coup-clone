@@ -4,9 +4,9 @@ import gleam/erlang/process.{type Subject}
 import gleam/function
 import gleam/otp/actor
 import gleam/result
-import lib/ids.{type ID}
+import lib/coup/ids.{type ID}
+import lib/coup/message
 import lib/just
-import lib/message
 import lib/ordered_dict as dict
 
 const timeout = 100

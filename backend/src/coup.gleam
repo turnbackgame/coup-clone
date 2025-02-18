@@ -1,8 +1,8 @@
 import gleam/erlang/process.{type Subject}
 import gleam/list
 import gleam/otp/actor
+import lib/coup/message
 import lib/generator
-import lib/message
 
 pub type Context {
   Context(subject: Subject(message.Event), id: String)

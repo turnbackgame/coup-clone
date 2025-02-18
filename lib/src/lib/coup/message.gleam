@@ -1,4 +1,4 @@
-import lib/ids.{type ID}
+import lib/coup/ids.{type ID}
 
 pub type User {
   User(id: String, name: String)

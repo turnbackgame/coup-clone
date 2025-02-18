@@ -6,8 +6,8 @@ import gleam/function
 import gleam/option.{Some}
 import gleam/otp/actor
 import gleam/result
+import lib/coup/ids.{type ID}
 import lib/generator
-import lib/ids.{type ID}
 
 const timeout = 100
 

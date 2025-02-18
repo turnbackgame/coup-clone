@@ -4,10 +4,10 @@ import coup/lobby
 import gleam/io
 import gleam/option.{type Option, None, Some}
 import gleam/uri
-import lib/ids.{type ID}
-import lib/json
+import lib/coup/ids.{type ID}
+import lib/coup/json
+import lib/coup/message
 import lib/just
-import lib/message
 import lustre/effect.{type Effect}
 import lustre_websocket as ws
 import modem

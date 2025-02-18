@@ -2,8 +2,8 @@ import gleam/dynamic/decode
 import gleam/json
 import gleam/list
 import gleam/string
-import lib/ids
-import lib/message
+import lib/coup/ids
+import lib/coup/message
 
 type Decoder(a) =
   decode.Decoder(a)

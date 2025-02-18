@@ -1,8 +1,8 @@
 import gleam/bool
 import gleam/list
-import lib/ids.{type ID}
-import lib/json
-import lib/message
+import lib/coup/ids.{type ID}
+import lib/coup/json
+import lib/coup/message
 import lustre/effect.{type Effect}
 import lustre/event
 import lustre_websocket as ws
