@@ -1,7 +1,7 @@
 import gleam/erlang/process.{type Subject}
 import gleam/list
 import gleam/otp/actor
-import lib/ids
+import lib/generator
 import lib/message
 
 pub type Context {
@@ -9,7 +9,7 @@ pub type Context {
 }
 
 pub fn new_context() -> Context {
-  Context(subject: process.new_subject(), id: ids.generate(5))
+  Context(subject: process.new_subject(), id: generator.generate(5))
 }
 
 /// todo: remove this

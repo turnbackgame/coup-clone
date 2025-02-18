@@ -6,6 +6,7 @@ import gleam/function
 import gleam/option.{Some}
 import gleam/otp/actor
 import gleam/result
+import lib/generator
 import lib/ids.{type ID}
 
 const timeout = 100
@@ -68,7 +69,7 @@ fn loop(msg: Message, dashboard: State) -> actor.Next(Message, State) {
     }
 
     CreateLobby(reply) -> {
-      let id = ids.generate(8) |> ids.from_string()
+      let id = generator.generate(8) |> ids.from_string()
       let lobby = lobby.new(id)
 
       let monitor =
