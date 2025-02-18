@@ -1,5 +1,5 @@
 pub opaque type ID(id_type) {
-  ID(string: String)
+  ID(String)
 }
 
 pub fn from_string(id: String) -> ID(a) {
@@ -7,11 +7,13 @@ pub fn from_string(id: String) -> ID(a) {
 }
 
 pub fn to_string(id: ID(a)) -> String {
-  id.string
+  let ID(s) = id
+  s
 }
 
 pub fn map(id: ID(a)) -> ID(b) {
-  ID(id.string)
+  let ID(a) = id
+  ID(a)
 }
 
 pub type User
