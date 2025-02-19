@@ -1,4 +1,5 @@
 import gleam/list
+import lib/id.{type Id}
 import lib/ordered_dict as dict
 
 pub type Error {
@@ -44,29 +45,25 @@ pub fn error_from_string(err: String) -> Error {
   }
 }
 
-pub type User(context) {
-  User(ctx: context, id: String, name: String)
+pub type Actor
+
+pub type User(t) {
+  User(ctx: t, id: Id(Actor), name: String)
 }
 
-pub fn new_user(ctx: context, id: String, name: String) -> User(context) {
+pub fn new_user(ctx: t, id: Id(Actor), name: String) -> User(t) {
   User(ctx:, id:, name:)
 }
 
-pub type Users(context) =
-  dict.OrderedDict(context, User(context))
+pub type Users(t) =
+  dict.OrderedDict(t, User(t))
 
-pub type Player(context) {
-  Player(
-    ctx: context,
-    id: String,
-    name: String,
-    influences: Influences,
-    coin: Int,
-  )
+pub type Player(t) {
+  Player(ctx: t, id: Id(Actor), name: String, influences: Influences, coin: Int)
 }
 
-pub type Players(context) =
-  dict.OrderedDict(context, Player(context))
+pub type Players(t) =
+  dict.OrderedDict(t, Player(t))
 
 pub type Character {
   Duke
@@ -154,14 +151,10 @@ fn draw_initial_influences(court: Court) -> #(Court, Influences) {
   #(Court(rest), Influences(left, right))
 }
 
-pub fn register_players(
-  court: Court,
-  users: Users(context),
-) -> #(Court, Players(context)) {
+pub fn register_players(court: Court, users: Users(t)) -> #(Court, Players(t)) {
   use #(court, players), ctx, user <- dict.fold(users, #(court, dict.new()))
   let #(court, influences) = draw_initial_influences(court)
-  let player =
-    Player(ctx: ctx, id: user.id, name: user.name, influences:, coin: 2)
+  let player = Player(ctx:, id: user.id, name: user.name, influences:, coin: 2)
   let players = players |> dict.insert_back(ctx, player)
   #(court, players)
 }
@@ -205,4 +198,14 @@ pub type Counteraction {
   BlockForeignAid
   BlockStealing
   BlockAssassination
+}
+
+pub type Room
+
+pub type Lobby(t) {
+  Lobby(id: Id(Room), users: Users(t), host_id: Id(Actor))
+}
+
+pub type Game(t) {
+  Game(id: Id(Room), court: Court, players: Players(t), turn: Int)
 }

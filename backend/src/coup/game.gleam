@@ -4,9 +4,9 @@ import gleam/erlang/process.{type Subject}
 import gleam/function
 import gleam/otp/actor
 import gleam/result
-import lib/coup
-import lib/coup/ids.{type ID}
+import lib/coup.{type Room}
 import lib/coup/message
+import lib/id.{type Id}
 import lib/just
 import lib/ordered_dict as dict
 
@@ -24,17 +24,8 @@ pub type Message {
 
 pub type Command
 
-type State {
-  State(
-    id: ID(ids.Game),
-    court: coup.Court,
-    players: coup.Players(Context),
-    turn: Int,
-  )
-}
-
 pub fn start(
-  id: ID(ids.Lobby),
+  id: Id(Room),
   users: coup.Users(Context),
 ) -> Result(Game, coup.Error) {
   use <- bool.guard(
@@ -43,7 +34,7 @@ pub fn start(
   )
 
   let #(court, players) = coup.new_court() |> coup.register_players(users)
-  let game = State(id: ids.map(id), court:, players:, turn: 0)
+  let game = coup.Game(id:, court:, players:, turn: 0)
 
   let init = fn() {
     let subject = process.new_subject()
@@ -53,7 +44,7 @@ pub fn start(
     actor.Ready(game, selector)
   }
 
-  let loop = fn(msg: Message, game: State) {
+  let loop = fn(msg: Message, game: coup.Game(Context)) {
     let ctx = msg.ctx
     use player <- just.try_ok(get_player(game, ctx), fn(err) {
       context.send_error(ctx, err)
@@ -74,14 +65,14 @@ pub fn start(
 
 fn handle_command(
   _command: Command,
-  _game: State,
+  _game: coup.Game(Context),
   _player: coup.Player(Context),
-) -> actor.Next(Message, State) {
+) -> actor.Next(Message, coup.Game(Context)) {
   todo
 }
 
 fn get_player(
-  game: State,
+  game: coup.Game(Context),
   ctx: Context,
 ) -> Result(coup.Player(Context), coup.Error) {
   game.players

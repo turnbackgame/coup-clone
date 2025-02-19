@@ -1,8 +1,9 @@
 import gleam/bool
 import gleam/list
-import lib/coup/ids.{type ID}
+import lib/coup.{type Actor, type Room}
 import lib/coup/json
 import lib/coup/message
+import lib/id.{type Id}
 import lustre/effect.{type Effect}
 import lustre/event
 import lustre_websocket as ws
@@ -12,20 +13,26 @@ import sketch/lustre/element/html
 pub type Lobby {
   Lobby(
     socket: ws.WebSocket,
-    id: ID(ids.Lobby),
+    id: Id(Room),
     users: List(message.User),
-    user_id: String,
-    host_id: String,
+    user_id: Id(Actor),
+    host_id: Id(Actor),
+  )
+}
+
+pub fn new(socket: ws.WebSocket) -> Lobby {
+  Lobby(
+    socket:,
+    id: id.new_empty(),
+    users: [],
+    user_id: id.new_empty(),
+    host_id: id.new_empty(),
   )
 }
 
 pub type Command {
   UserLeavedLobby
   UserStartedGame
-}
-
-pub fn new(socket: ws.WebSocket) -> Lobby {
-  Lobby(socket:, id: ids.from_string(""), users: [], user_id: "", host_id: "")
 }
 
 pub fn update(lobby: Lobby, command: Command) -> #(Lobby, Effect(Command)) {
@@ -50,6 +57,24 @@ pub fn update(lobby: Lobby, command: Command) -> #(Lobby, Effect(Command)) {
   }
 }
 
+pub fn init(
+  lobby: Lobby,
+  id: Id(Room),
+  users: List(message.User),
+  user_id: Id(Actor),
+  host_id: Id(Actor),
+) -> Lobby {
+  Lobby(..lobby, id: id, users:, user_id:, host_id:)
+}
+
+pub fn update_users(
+  lobby: Lobby,
+  users: List(message.User),
+  host_id: Id(Actor),
+) -> Lobby {
+  Lobby(..lobby, users:, host_id:)
+}
+
 pub fn view(lobby: Lobby) -> Element(Command) {
   let users =
     html.ul_(
@@ -63,22 +88,4 @@ pub fn view(lobby: Lobby) -> Element(Command) {
   }
 
   html.div_([], [users, start_button])
-}
-
-pub fn init(
-  lobby: Lobby,
-  id: ID(ids.Lobby),
-  users: List(message.User),
-  user_id: String,
-  host_id: String,
-) -> Lobby {
-  Lobby(..lobby, id: id, users:, user_id: user_id, host_id: host_id)
-}
-
-pub fn update_users(
-  lobby: Lobby,
-  users: List(message.User),
-  host_id: String,
-) -> Lobby {
-  Lobby(..lobby, users:, host_id:)
 }

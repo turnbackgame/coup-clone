@@ -1,7 +1,8 @@
 import gleam/bool
-import lib/coup/ids.{type ID}
+import lib/coup.{type Room}
 import lib/coup/json
 import lib/coup/message
+import lib/id.{type Id}
 import lustre/attribute
 import lustre/effect.{type Effect}
 import lustre/event
@@ -13,14 +14,14 @@ pub type Dashboard {
   Dashboard(socket: ws.WebSocket, name: String)
 }
 
+pub fn new(socket: ws.WebSocket) -> Dashboard {
+  Dashboard(socket:, name: "")
+}
+
 pub type Command {
   UserUpdatedName(name: String)
   UserCreatedLobby(key_pressed: String)
-  UserJoinedLobby(key_pressed: String, id: ID(ids.Lobby))
-}
-
-pub fn new(socket: ws.WebSocket) -> Dashboard {
-  Dashboard(socket:, name: "")
+  UserJoinedLobby(key_pressed: String, id: Id(Room))
 }
 
 pub fn update(
@@ -69,10 +70,7 @@ pub fn view(_dashboard: Dashboard) -> Element(Command) {
   ])
 }
 
-pub fn view_invitation(
-  _dashboard: Dashboard,
-  id: ID(ids.Lobby),
-) -> Element(Command) {
+pub fn view_invitation(_dashboard: Dashboard, id: Id(Room)) -> Element(Command) {
   html.div_([], [
     html.h1_([], [html.text("Invitation")]),
     html.input_([

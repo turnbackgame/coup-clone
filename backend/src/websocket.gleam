@@ -1,4 +1,4 @@
-import coup/context
+import coup/context.{type Context}
 import coup/dashboard.{type Dashboard}
 import coup/game.{type Game}
 import coup/lobby.{type Lobby}
@@ -17,7 +17,7 @@ import mist.{type Connection, type ResponseData}
 
 pub type User {
   User(
-    ctx: context.Context,
+    ctx: Context,
     dashboard: Dashboard,
     lobby: Option(Lobby),
     game: Option(Game),

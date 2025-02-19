@@ -1,9 +1,9 @@
 import gleam/int
 import gleam/list
 import gleam/string
-import lib/coup
-import lib/coup/ids.{type ID}
+import lib/coup.{type Actor, type Room}
 import lib/coup/message
+import lib/id.{type Id}
 import lustre/effect.{type Effect}
 import lustre_websocket as ws
 import sketch/css
@@ -14,9 +14,9 @@ import sketch/lustre/element/html
 pub type Game {
   Game(
     socket: ws.WebSocket,
-    id: ID(ids.Game),
+    id: Id(Room),
     players: List(message.Player),
-    player_id: String,
+    player_id: Id(Actor),
     deck_count: Int,
   )
 }
@@ -26,9 +26,9 @@ pub type Command
 pub fn new(socket: ws.WebSocket) -> Game {
   Game(
     socket:,
-    id: ids.from_string(""),
+    id: id.new_empty(),
     players: [],
-    player_id: "",
+    player_id: id.new_empty(),
     deck_count: 0,
   )
 }
@@ -39,9 +39,9 @@ pub fn update(_game: Game, _command: Command) -> #(Game, Effect(Command)) {
 
 pub fn init(
   game: Game,
-  id: ID(ids.Game),
+  id: Id(Room),
   players: List(message.Player),
-  player_id: String,
+  player_id: Id(Actor),
   deck_count: Int,
 ) -> Game {
   Game(..game, id:, players:, player_id:, deck_count:)

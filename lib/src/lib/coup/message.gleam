@@ -1,19 +1,19 @@
-import lib/coup
-import lib/coup/ids.{type ID}
+import lib/coup.{type Actor, type Room}
+import lib/id.{type Id}
 
 pub type User {
-  User(id: String, name: String)
+  User(id: Id(Actor), name: String)
 }
 
-pub fn from_user(user: coup.User(context)) -> User {
+pub fn from_user(user: coup.User(t)) -> User {
   User(id: user.id, name: user.name)
 }
 
 pub type Player {
-  Player(id: String, name: String, influences: coup.Influences, coin: Int)
+  Player(id: Id(Actor), name: String, influences: coup.Influences, coin: Int)
 }
 
-pub fn from_player(player: coup.Player(context)) -> Player {
+pub fn from_player(player: coup.Player(t)) -> Player {
   Player(
     id: player.id,
     name: player.name,
@@ -30,19 +30,19 @@ pub type Event {
 
 pub type LobbyEvent {
   LobbyInit(
-    id: ID(ids.Lobby),
+    id: Id(Room),
     users: List(User),
-    user_id: String,
-    host_id: String,
+    user_id: Id(Actor),
+    host_id: Id(Actor),
   )
-  LobbyUpdatedUsers(users: List(User), host_id: String)
+  LobbyUpdatedUsers(users: List(User), host_id: Id(Actor))
 }
 
 pub type GameEvent {
   GameInit(
-    id: ID(ids.Game),
+    id: Id(Room),
     players: List(Player),
-    player_id: String,
+    player_id: Id(Actor),
     deck_count: Int,
   )
 }
@@ -55,7 +55,7 @@ pub type Command {
 
 pub type DashboardCommand {
   UserCreateLobby(name: String)
-  UserJoinLobby(id: ID(ids.Lobby), name: String)
+  UserJoinLobby(id: Id(Room), name: String)
 }
 
 pub type LobbyCommand {

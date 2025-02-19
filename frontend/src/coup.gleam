@@ -4,9 +4,10 @@ import coup/lobby
 import gleam/io
 import gleam/option.{type Option, None, Some}
 import gleam/uri
-import lib/coup/ids.{type ID}
+import lib/coup.{type Room}
 import lib/coup/json
 import lib/coup/message
+import lib/id.{type Id}
 import lib/just
 import lustre/effect.{type Effect}
 import lustre_websocket as ws
@@ -41,7 +42,7 @@ pub fn update(model: Model, msg: Message) -> #(Model, Effect(Message)) {
           Error(_) -> DashboardPage(dashboard)
           Ok(uri) ->
             case uri.path_segments(uri.path) {
-              [id] -> InvitationPage(dashboard, ids.from_string(id))
+              [id] -> InvitationPage(dashboard, id |> id.from_string)
               _ -> DashboardPage(dashboard)
             }
         }
@@ -100,7 +101,7 @@ pub fn update(model: Model, msg: Message) -> #(Model, Effect(Message)) {
 
 pub type Page {
   DashboardPage(dashboard.Dashboard)
-  InvitationPage(dashboard.Dashboard, id: ID(ids.Lobby))
+  InvitationPage(dashboard.Dashboard, id: Id(Room))
   LobbyPage(lobby.Lobby)
   GamePage(game.Game)
 }
@@ -159,7 +160,7 @@ fn handle_lobby_event(
     message.LobbyInit(id, users, user_id, host_id) -> {
       let lobby = lobby |> lobby.init(id, users, user_id, host_id)
       let model = Model(page: Some(LobbyPage(lobby)))
-      #(model, modem.push("/" <> ids.to_string(lobby.id), None, None))
+      #(model, modem.push("/" <> id.to_string(lobby.id), None, None))
     }
     message.LobbyUpdatedUsers(users, host_id) -> {
       let lobby = lobby |> lobby.update_users(users, host_id)

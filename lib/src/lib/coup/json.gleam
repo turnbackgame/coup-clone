@@ -2,9 +2,9 @@ import gleam/dynamic/decode
 import gleam/json
 import gleam/list
 import gleam/string
-import lib/coup
-import lib/coup/ids
+import lib/coup.{type Actor}
 import lib/coup/message
+import lib/id.{type Id}
 
 type Decoder(a) =
   decode.Decoder(a)
@@ -20,15 +20,19 @@ pub fn decode_event(buf: String) -> Result(message.Event, json.DecodeError) {
     case string.split(event, "/") {
       ["error"] -> {
         use err <- decode.field("msg", decode.string)
-        decode.success(message.ErrorEvent(coup.error_from_string(err)))
+        coup.error_from_string(err)
+        |> message.ErrorEvent
+        |> decode.success
       }
       ["lobby", ..] -> {
         use lobby_event <- decode.then(lobby_event_decoder(event))
-        decode.success(message.LobbyEvent(lobby_event))
+        message.LobbyEvent(lobby_event)
+        |> decode.success
       }
       ["game", ..] -> {
         use game_event <- decode.then(game_event_decoder(event))
-        decode.success(message.GameEvent(game_event))
+        message.GameEvent(game_event)
+        |> decode.success
       }
       _ -> todo
     }
@@ -58,17 +62,21 @@ fn lobby_event_decoder(event: String) -> Decoder(message.LobbyEvent) {
       use users <- decode.field("users", decode.list(user_decoder()))
       use user_id <- decode.field("user_id", decode.string)
       use host_id <- decode.field("host_id", decode.string)
-      decode.success(message.LobbyInit(
-        id: ids.from_string(id),
+      message.LobbyInit(
+        id: id |> id.from_string,
         users:,
-        user_id:,
-        host_id:,
-      ))
+        user_id: user_id |> id.from_string,
+        host_id: host_id |> id.from_string,
+      )
+      |> decode.success
     }
     "lobby/updated_users" -> {
       use users <- decode.field("users", decode.list(user_decoder()))
       use host_id <- decode.field("host_id", decode.string)
-      decode.success(message.LobbyUpdatedUsers(users:, host_id:))
+      decode.success(message.LobbyUpdatedUsers(
+        users:,
+        host_id: host_id |> id.from_string,
+      ))
     }
     _ -> todo
   }
@@ -79,18 +87,18 @@ fn lobby_event_encoder(event: message.LobbyEvent) -> Encoder {
     message.LobbyInit(id, users, user_id, host_id) -> {
       [
         #(evt, json.string("lobby/init")),
-        #("id", json.string(ids.to_string(id))),
-        #("users", json.array(users, user_encoder)),
-        #("user_id", json.string(user_id)),
-        #("host_id", json.string(host_id)),
+        #("id", id |> id.to_string |> json.string),
+        #("users", users |> json.array(user_encoder)),
+        #("user_id", user_id |> id.to_string |> json.string),
+        #("host_id", host_id |> id.to_string |> json.string),
       ]
       |> json.object
     }
     message.LobbyUpdatedUsers(users, host_id) -> {
       [
         #(evt, json.string("lobby/updated_users")),
-        #("users", json.array(users, user_encoder)),
-        #("host_id", json.string(host_id)),
+        #("users", users |> json.array(user_encoder)),
+        #("host_id", host_id |> id.to_string |> json.string),
       ]
       |> json.object
     }
@@ -104,12 +112,13 @@ fn game_event_decoder(event: String) -> Decoder(message.GameEvent) {
       use players <- decode.field("players", decode.list(player_decoder()))
       use player_id <- decode.field("player_id", decode.string)
       use deck_count <- decode.field("deck_count", decode.int)
-      decode.success(message.GameInit(
-        id: ids.from_string(id),
+      message.GameInit(
+        id: id |> id.from_string,
         players:,
-        player_id:,
+        player_id: player_id |> id.from_string,
         deck_count:,
-      ))
+      )
+      |> decode.success
     }
     _ -> todo
   }
@@ -121,13 +130,12 @@ fn game_event_encoder(event: message.GameEvent) -> Encoder {
       let #(left, right) =
         players |> list.split_while(fn(p) { p.id != player_id })
       let players = list.append(right, left)
-
       [
         #(evt, json.string("game/init")),
-        #("id", json.string(ids.to_string(id))),
-        #("players", json.array(players, player_encoder(_, player_id))),
-        #("player_id", json.string(player_id)),
-        #("deck_count", json.int(deck_count)),
+        #("id", id |> id.to_string |> json.string),
+        #("players", players |> json.array(player_encoder(_, player_id))),
+        #("player_id", player_id |> id.to_string |> json.string),
+        #("deck_count", deck_count |> json.int),
       ]
       |> json.object
     }
@@ -159,12 +167,12 @@ pub fn decode_command(buf: String) -> Result(message.Command, json.DecodeError) 
 }
 
 pub fn encode_command(command: message.Command) -> String {
-  let encoder = case command {
+  case command {
     message.DashboardCommand(command) -> dashboard_command_encoder(command)
     message.LobbyCommand(command) -> lobby_command_encoder(command)
     message.GameCommand(command) -> game_command_encoder(command)
   }
-  json.to_string(encoder)
+  |> json.to_string
 }
 
 pub fn dashboard_command_decoder(
@@ -173,12 +181,14 @@ pub fn dashboard_command_decoder(
   case command {
     "dashboard/user_create_lobby" -> {
       use name <- decode.field("name", decode.string)
-      decode.success(message.UserCreateLobby(name))
+      message.UserCreateLobby(name)
+      |> decode.success
     }
     "dashboard/user_join_lobby" -> {
       use id <- decode.field("id", decode.string)
       use name <- decode.field("name", decode.string)
-      decode.success(message.UserJoinLobby(ids.from_string(id), name))
+      message.UserJoinLobby(id: id |> id.from_string, name:)
+      |> decode.success
     }
     _ -> todo
   }
@@ -189,15 +199,15 @@ pub fn dashboard_command_encoder(command: message.DashboardCommand) -> Encoder {
     message.UserCreateLobby(name) -> {
       [
         #(cmd, json.string("dashboard/user_create_lobby")),
-        #("name", json.string(name)),
+        #("name", name |> json.string),
       ]
       |> json.object
     }
     message.UserJoinLobby(id, name) -> {
       [
         #(cmd, json.string("dashboard/user_join_lobby")),
-        #("id", json.string(ids.to_string(id))),
-        #("name", json.string(name)),
+        #("id", id |> id.to_string |> json.string),
+        #("name", name |> json.string),
       ]
       |> json.object
     }
@@ -207,10 +217,12 @@ pub fn dashboard_command_encoder(command: message.DashboardCommand) -> Encoder {
 pub fn lobby_command_decoder(command: String) -> Decoder(message.LobbyCommand) {
   case command {
     "lobby/user_leave_lobby" -> {
-      decode.success(message.UserLeaveLobby)
+      message.UserLeaveLobby
+      |> decode.success
     }
     "lobby/user_start_game" -> {
-      decode.success(message.UserStartGame)
+      message.UserStartGame
+      |> decode.success
     }
     _ -> todo
   }
@@ -240,11 +252,15 @@ pub fn game_command_encoder(_command: message.GameCommand) -> Encoder {
 fn user_decoder() -> Decoder(message.User) {
   use id <- decode.field("id", decode.string)
   use name <- decode.field("name", decode.string)
-  decode.success(message.User(id:, name:))
+  message.User(id: id |> id.from_string, name:)
+  |> decode.success
 }
 
 fn user_encoder(user: message.User) -> Encoder {
-  [#("id", json.string(user.id)), #("name", json.string(user.name))]
+  [
+    #("id", user.id |> id.to_string |> json.string),
+    #("name", user.name |> json.string),
+  ]
   |> json.object
 }
 
@@ -253,23 +269,25 @@ fn player_decoder() -> Decoder(message.Player) {
   use name <- decode.field("name", decode.string)
   use influences <- decode.field("influences", influences_decoder())
   use coin <- decode.field("coin", decode.int)
-  decode.success(message.Player(id:, name:, influences:, coin:))
+  message.Player(id: id |> id.from_string, name:, influences:, coin:)
+  |> decode.success
 }
 
-fn player_encoder(player: message.Player, player_id: String) -> Encoder {
+fn player_encoder(player: message.Player, player_id: Id(Actor)) -> Encoder {
   let reveal = player.id == player_id
   [
-    #("id", json.string(player.id)),
-    #("name", json.string(player.name)),
-    #("influences", influences_encoder(player.influences, reveal)),
-    #("coin", json.int(player.coin)),
+    #("id", player.id |> id.to_string |> json.string),
+    #("name", player.name |> json.string),
+    #("influences", player.influences |> influences_encoder(reveal)),
+    #("coin", player.coin |> json.int),
   ]
   |> json.object
 }
 
 fn influence_decoder() -> Decoder(coup.Influence) {
   use influence <- decode.then(decode.string)
-  coup.influence_from_string(influence)
+  influence
+  |> coup.influence_from_string
   |> decode.success
 }
 
@@ -290,7 +308,8 @@ fn influence_encoder(influence: coup.Influence, reveal: Bool) -> Encoder {
 fn influences_decoder() -> Decoder(coup.Influences) {
   use left <- decode.field("left", influence_decoder())
   use right <- decode.field("right", influence_decoder())
-  decode.success(coup.Influences(left, right))
+  coup.Influences(left, right)
+  |> decode.success
 }
 
 fn influences_encoder(influences: coup.Influences, reveal: Bool) -> Encoder {

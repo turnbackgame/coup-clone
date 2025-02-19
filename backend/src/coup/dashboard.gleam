@@ -5,9 +5,9 @@ import gleam/function
 import gleam/option.{Some}
 import gleam/otp/actor
 import gleam/result
-import lib/coup
-import lib/coup/ids.{type ID}
+import lib/coup.{type Room}
 import lib/generator
+import lib/id.{type Id}
 
 const timeout = 100
 
@@ -16,14 +16,14 @@ pub type Dashboard =
 
 type State {
   State(
-    lobbies: dict.Dict(ID(ids.Lobby), Lobby),
+    lobbies: dict.Dict(Id(Room), Lobby),
     selector: process.Selector(Message),
   )
 }
 
 pub type Message {
-  DeleteLobby(process.ProcessDown, id: ID(ids.Lobby))
-  GetLobby(reply: Subject(Result(Lobby, coup.Error)), id: ID(ids.Lobby))
+  DeleteLobby(process.ProcessDown, id: Id(Room))
+  GetLobby(reply: Subject(Result(Lobby, coup.Error)), id: Id(Room))
   CreateLobby(reply: Subject(Lobby))
 }
 
@@ -48,7 +48,7 @@ pub fn create_lobby(dashboard: Dashboard) -> Lobby {
 
 pub fn get_lobby(
   dashboard: Dashboard,
-  id: ID(ids.Lobby),
+  id: Id(Room),
 ) -> Result(Lobby, coup.Error) {
   actor.call(dashboard, GetLobby(_, id), timeout)
 }
@@ -69,7 +69,7 @@ fn loop(msg: Message, dashboard: State) -> actor.Next(Message, State) {
     }
 
     CreateLobby(reply) -> {
-      let id = generator.generate(8) |> ids.from_string()
+      let id = generator.generate(8) |> id.from_string
       let lobby = lobby.new(id)
 
       let monitor =
