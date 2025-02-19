@@ -3,6 +3,8 @@ import gleam/json
 import gleam/list
 import gleam/string
 import lib/coup.{type Actor}
+import lib/coup/character
+import lib/coup/influence.{type Influence, type Influences}
 import lib/coup/message
 import lib/id.{type Id}
 
@@ -284,36 +286,36 @@ fn player_encoder(player: message.Player, player_id: Id(Actor)) -> Encoder {
   |> json.object
 }
 
-fn influence_decoder() -> Decoder(coup.Influence) {
+fn influence_decoder() -> Decoder(Influence) {
   use influence <- decode.then(decode.string)
   influence
-  |> coup.influence_from_string
+  |> influence.from_string
   |> decode.success
 }
 
-fn influence_encoder(influence: coup.Influence, reveal: Bool) -> Encoder {
+fn influence_encoder(influence: Influence, reveal: Bool) -> Encoder {
   case influence {
-    coup.FaceUp(..) -> influence
-    coup.FaceDown(..) -> {
+    influence.FaceUp(..) -> influence
+    influence.FaceDown(..) -> {
       case reveal {
         True -> influence
-        False -> coup.FaceDown(coup.UnknownCharacter)
+        False -> influence.FaceDown(character.Unknown)
       }
     }
   }
-  |> coup.influence_to_string
+  |> influence.to_string
   |> json.string
 }
 
-fn influences_decoder() -> Decoder(coup.Influences) {
+fn influences_decoder() -> Decoder(Influences) {
   use left <- decode.field("left", influence_decoder())
   use right <- decode.field("right", influence_decoder())
-  coup.Influences(left, right)
+  influence.Influences(left, right)
   |> decode.success
 }
 
-fn influences_encoder(influences: coup.Influences, reveal: Bool) -> Encoder {
-  let coup.Influences(left, right) = influences
+fn influences_encoder(influences: Influences, reveal: Bool) -> Encoder {
+  let influence.Influences(left, right) = influences
   [
     #("left", influence_encoder(left, reveal)),
     #("right", influence_encoder(right, reveal)),

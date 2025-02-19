@@ -1,4 +1,6 @@
-import gleam/list
+import gleam/int
+import lib/coup/court.{type Court}
+import lib/coup/influence.{type Influences}
 import lib/id.{type Id}
 import lib/ordered_dict as dict
 
@@ -65,147 +67,150 @@ pub type Player(t) {
 pub type Players(t) =
   dict.OrderedDict(t, Player(t))
 
-pub type Character {
-  Duke
-  Assassin
-  Contessa
-  Captain
-  Ambassador
-  UnknownCharacter
+pub type Room
+
+pub type Game(t) {
+  Game(
+    id: Id(Room),
+    court: Court,
+    players: Players(t),
+    turn: Int,
+    state: State(t),
+  )
 }
 
-pub fn character_from_string(character: String) -> Character {
-  case character {
-    "duke" -> Duke
-    "assassin" -> Assassin
-    "contessa" -> Contessa
-    "captain" -> Captain
-    "ambassador" -> Ambassador
-    _ -> UnknownCharacter
-  }
+fn player_turn(_game: Game(t)) -> Player(t) {
+  todo
 }
 
-pub fn character_to_string(character: Character) -> String {
-  case character {
-    Duke -> "duke"
-    Assassin -> "assassin"
-    Contessa -> "contessa"
-    Captain -> "captain"
-    Ambassador -> "ambassador"
-    UnknownCharacter -> "-"
-  }
+fn pay_coin(game: Game(t), player: Player(t), coin: Int) -> Game(t) {
+  let player = Player(..player, coin: player.coin |> int.subtract(coin))
+  let players = game.players |> dict.update(player.ctx, player)
+  Game(..game, players:)
 }
 
-pub type Influence {
-  FaceDown(Character)
-  FaceUp(Character)
+fn take_coin(game: Game(t), player: Player(t), coin: Int) -> Game(t) {
+  let player = Player(..player, coin: player.coin |> int.add(coin))
+  let players = game.players |> dict.update(player.ctx, player)
+  Game(..game, players:)
 }
 
-pub fn influence_from_string(influence: String) -> Influence {
-  case influence {
-    "face-down:" <> character ->
-      character_from_string(character)
-      |> FaceDown
-    character ->
-      character_from_string(character)
-      |> FaceUp
-  }
-}
-
-pub fn influence_to_string(influence: Influence) -> String {
-  case influence {
-    FaceDown(character) -> "face-down:" <> character_to_string(character)
-    FaceUp(character) -> character_to_string(character)
-  }
-}
-
-pub type Influences {
-  Influences(Influence, Influence)
-}
-
-pub type Court {
-  Court(List(Influence))
-}
-
-pub fn new_court() -> Court {
-  []
-  |> list.append(list.repeat(FaceDown(Duke), 3))
-  |> list.append(list.repeat(FaceDown(Assassin), 3))
-  |> list.append(list.repeat(FaceDown(Contessa), 3))
-  |> list.append(list.repeat(FaceDown(Captain), 3))
-  |> list.append(list.repeat(FaceDown(Ambassador), 3))
-  |> Court
-  |> shuffle_deck
-}
-
-fn shuffle_deck(court: Court) -> Court {
-  let Court(deck) = court
-  deck
-  |> list.shuffle
-  |> Court
-}
-
-fn draw_initial_influences(court: Court) -> #(Court, Influences) {
-  let Court(deck) = court
-  let assert [left, right, ..rest] = deck
-  #(Court(rest), Influences(left, right))
-}
-
-pub fn register_players(court: Court, users: Users(t)) -> #(Court, Players(t)) {
+pub fn register_players(
+  court: court.Court,
+  users: Users(t),
+) -> #(Court, Players(t)) {
   use #(court, players), ctx, user <- dict.fold(users, #(court, dict.new()))
-  let #(court, influences) = draw_initial_influences(court)
+  let #(court, influences) = court.draw_initial_influences(court)
   let player = Player(ctx:, id: user.id, name: user.name, influences:, coin: 2)
   let players = players |> dict.insert_back(ctx, player)
   #(court, players)
 }
 
-pub fn count_deck(court: Court) -> Int {
-  let Court(deck) = court
-  list.length(deck)
+pub type State(t) {
+  Waiting
+  TakingAction
+  OpenBlock(fn() -> Game(t))
+  OpenChallenge(fn() -> Game(t))
+  OpenBlockOrChallenge(fn() -> Game(t))
+  Resolution(fn() -> Game(t))
 }
 
-pub fn draw_influence(court: Court) -> Result(#(Court, Influence), Nil) {
-  let Court(deck) = court
-  case deck {
-    [first, ..rest] -> Ok(#(Court(rest), first))
-    _ -> Error(Nil)
-  }
+pub type Event(t) {
+  StartTurn
+  Action(Action(t))
+  Block
+  Challenge
+  Allow
+  EndTurn
 }
 
-pub fn return_influence(court: Court, influence: Influence) -> Court {
-  let character = case influence {
-    FaceDown(character) -> character
-    FaceUp(character) -> character
-  }
-  let Court(deck) = court
-  deck
-  |> list.prepend(FaceDown(character))
-  |> Court
-  |> shuffle_deck
-}
-
-pub type Action {
+pub type Action(t) {
   Income
-  Coup
   ForeignAid
+  Coup(Player(t))
   Tax
-  Assassinate
+  Assassinate(Player(t))
   Exchange
-  Steal
+  Steal(Player(t))
 }
 
-pub type Counteraction {
-  BlockForeignAid
-  BlockStealing
-  BlockAssassination
+pub fn take_action(
+  action: Action(t),
+  game: Game(t),
+  player: Player(t),
+) -> State(t) {
+  case action {
+    Income -> {
+      use <- Resolution
+      game |> take_coin(player, 1)
+    }
+
+    ForeignAid -> {
+      use <- OpenBlock
+      game |> take_coin(player, 2)
+    }
+
+    Coup(_target) -> {
+      use <- Resolution
+      game |> pay_coin(player, 7)
+      todo
+    }
+
+    Tax -> {
+      use <- OpenChallenge
+      game |> take_coin(player, 3)
+    }
+
+    Assassinate(_target) -> {
+      use <- OpenBlockOrChallenge
+      game |> pay_coin(player, 3)
+      todo
+    }
+
+    Exchange -> {
+      use <- OpenChallenge
+      game
+    }
+
+    Steal(target) -> {
+      use <- OpenBlockOrChallenge
+      game |> take_coin(player, 3) |> pay_coin(target, 3)
+    }
+  }
 }
 
-pub type Room
-
-pub type Lobby(t) {
-  Lobby(id: Id(Room), users: Users(t), host_id: Id(Actor))
-}
-
-pub type Game(t) {
-  Game(id: Id(Room), court: Court, players: Players(t), turn: Int)
+pub fn next(game: Game(t), event: Event(t)) -> State(t) {
+  let player = game |> player_turn
+  case game.state {
+    Waiting ->
+      case event {
+        StartTurn -> TakingAction
+        _ -> Waiting
+      }
+    TakingAction ->
+      case event {
+        Action(action) -> take_action(action, game, player)
+        _ -> TakingAction
+      }
+    OpenBlock(do) ->
+      case event {
+        Allow -> Resolution(do)
+        Block -> OpenChallenge(do)
+        _ -> OpenBlock(do)
+      }
+    OpenChallenge(do) ->
+      case event {
+        Allow -> Resolution(do)
+        Challenge -> todo
+        _ -> OpenChallenge(do)
+      }
+    OpenBlockOrChallenge(do) ->
+      case event {
+        Allow -> Resolution(do)
+        Block -> OpenChallenge(do)
+        Challenge -> todo
+        _ -> OpenBlockOrChallenge(do)
+      }
+    Resolution(do) -> Resolution(do)
+  }
 }

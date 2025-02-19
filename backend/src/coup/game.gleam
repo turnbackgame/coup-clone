@@ -1,40 +1,31 @@
-import coup/context.{type Context}
+import coup/user.{type User, type Users}
 import gleam/bool
 import gleam/erlang/process.{type Subject}
 import gleam/function
 import gleam/otp/actor
 import gleam/result
-import lib/coup.{type Room}
+import lib/coup.{type Actor, type Room}
+import lib/coup/court.{type Court}
+import lib/coup/influence.{type Influences}
 import lib/coup/message
 import lib/id.{type Id}
 import lib/just
 import lib/ordered_dict as dict
-
-const timeout = 100
 
 const minimum_players = 2
 
 pub type Game =
   Subject(Message)
 
-/// todo: evaluate if we should use reply or not.
-pub type Message {
-  Message(ctx: Context, command: Command)
-}
-
-pub type Command
-
-pub fn start(
-  id: Id(Room),
-  users: coup.Users(Context),
-) -> Result(Game, coup.Error) {
+pub fn start(id: Id(Room), users: Users) -> Result(Game, coup.Error) {
   use <- bool.guard(
     dict.size(users) < minimum_players,
     Error(coup.PlayersNotEnough),
   )
 
-  let #(court, players) = coup.new_court() |> coup.register_players(users)
-  let game = coup.Game(id:, court:, players:, turn: 0)
+  let game =
+    State(id:, court: court.new(), players: dict.new(), turn: 0)
+    |> register_players(users)
 
   let init = fn() {
     let subject = process.new_subject()
@@ -44,10 +35,9 @@ pub fn start(
     actor.Ready(game, selector)
   }
 
-  let loop = fn(msg: Message, game: coup.Game(Context)) {
-    let ctx = msg.ctx
-    use player <- just.try_ok(get_player(game, ctx), fn(err) {
-      context.send_error(ctx, err)
+  let loop = fn(msg: Message, game: State) {
+    use player <- just.try_ok(get_player(game, msg.user), fn(err) {
+      user.send_error(msg.user, err)
       actor.continue(game)
     })
     handle_command(msg.command, game, player)
@@ -56,30 +46,67 @@ pub fn start(
   let assert Ok(subject) =
     actor.start_spec(actor.Spec(init:, init_timeout: 100, loop:))
 
-  let players = game.players |> dict.map(message.from_player) |> dict.to_list()
-  let deck_count = coup.count_deck(game.court)
+  let players = game.players |> dict.map(player_to_message) |> dict.to_list()
+  let deck_count = court.count(game.court)
   use player <- dict.each(game.players, Ok(subject))
-  message.GameInit(id: game.id, players:, player_id: player.id, deck_count:)
+  message.GameInit(
+    id: game.id,
+    players:,
+    player_id: player.user.id,
+    deck_count:,
+  )
   |> send_player_event(player, _)
 }
 
+/// todo: evaluate if we should use reply or not.
+pub type Message {
+  Message(user: User, command: Command)
+}
+
+pub type Command
+
 fn handle_command(
   _command: Command,
-  _game: coup.Game(Context),
-  _player: coup.Player(Context),
-) -> actor.Next(Message, coup.Game(Context)) {
+  _game: State,
+  _player: Player,
+) -> actor.Next(Message, State) {
   todo
 }
 
-fn get_player(
-  game: coup.Game(Context),
-  ctx: Context,
-) -> Result(coup.Player(Context), coup.Error) {
-  game.players
-  |> dict.get(ctx)
-  |> result.map_error(fn(_) { coup.PlayerNotExist })
+type Players =
+  dict.OrderedDict(Id(Actor), Player)
+
+type Player {
+  Player(user: User, influences: Influences, coin: Int)
 }
 
-fn send_player_event(player: coup.Player(Context), event: message.GameEvent) {
-  actor.send(player.ctx.subject, message.GameEvent(event))
+fn send_player_event(player: Player, event: message.GameEvent) {
+  actor.send(player.user.subject, message.GameEvent(event))
+}
+
+fn player_to_message(player: Player) -> message.Player {
+  message.Player(
+    id: player.user.id,
+    name: player.user.name,
+    influences: player.influences,
+    coin: player.coin,
+  )
+}
+
+type State {
+  State(id: Id(Room), court: Court, players: Players, turn: Int)
+}
+
+fn register_players(game: State, users: Users) -> State {
+  use game, id, user <- dict.fold(users, game)
+  let #(court, influences) = court.draw_initial_influences(game.court)
+  let player = Player(user:, influences:, coin: 2)
+  let players = game.players |> dict.insert_back(id, player)
+  State(..game, court:, players:)
+}
+
+fn get_player(game: State, user: User) -> Result(Player, coup.Error) {
+  game.players
+  |> dict.get(user.id)
+  |> result.map_error(fn(_) { coup.PlayerNotExist })
 }

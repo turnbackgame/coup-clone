@@ -1,24 +1,17 @@
 import lib/coup.{type Actor, type Room}
+import lib/coup/influence
 import lib/id.{type Id}
 
 pub type User {
   User(id: Id(Actor), name: String)
 }
 
-pub fn from_user(user: coup.User(t)) -> User {
-  User(id: user.id, name: user.name)
-}
-
 pub type Player {
-  Player(id: Id(Actor), name: String, influences: coup.Influences, coin: Int)
-}
-
-pub fn from_player(player: coup.Player(t)) -> Player {
   Player(
-    id: player.id,
-    name: player.name,
-    influences: player.influences,
-    coin: player.coin,
+    id: Id(Actor),
+    name: String,
+    influences: influence.Influences,
+    coin: Int,
   )
 }
 

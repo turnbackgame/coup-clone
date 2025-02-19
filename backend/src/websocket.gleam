@@ -1,7 +1,8 @@
-import coup/context.{type Context}
 import coup/dashboard.{type Dashboard}
 import coup/game.{type Game}
 import coup/lobby.{type Lobby}
+import coup/user.{type User}
+import gleam/bool
 import gleam/erlang/process
 import gleam/function
 import gleam/http/request.{type Request}
@@ -9,24 +10,25 @@ import gleam/http/response.{type Response}
 import gleam/option.{type Option, None, Some}
 import gleam/otp/actor
 import gleam/result
+import gleam/string
 import lib/coup
 import lib/coup/json
 import lib/coup/message
 import lib/just
 import mist.{type Connection, type ResponseData}
 
-pub type User {
-  User(
-    ctx: Context,
+pub type Session {
+  Session(
+    user: User,
     dashboard: Dashboard,
     lobby: Option(Lobby),
     game: Option(Game),
   )
 }
 
-fn send_user_error(user: User, err: coup.Error) -> User {
-  actor.send(user.ctx.subject, message.ErrorEvent(err))
-  user
+pub fn send_error(session: Session, err: coup.Error) -> Session {
+  actor.send(session.user.subject, message.ErrorEvent(err))
+  session
 }
 
 pub fn handle_request(
@@ -34,118 +36,127 @@ pub fn handle_request(
   dashboard: Dashboard,
 ) -> Response(ResponseData) {
   let on_init = fn(_conn) {
-    let ctx = context.new()
+    let user = user.new()
     let selector =
       process.new_selector()
-      |> process.selecting(ctx.subject, function.identity)
-    let user = User(ctx:, dashboard:, lobby: None, game: None)
-    #(user, Some(selector))
+      |> process.selecting(user.subject, function.identity)
+    let session = Session(user:, dashboard:, lobby: None, game: None)
+    #(session, Some(selector))
   }
 
-  let on_close = fn(user: User) {
+  let on_close = fn(session: Session) {
     {
-      case user.lobby {
-        Some(lobby) -> lobby.leave(lobby, user.ctx)
+      case session.lobby {
+        Some(lobby) -> lobby.leave(lobby, session.user)
         None -> Nil
       }
     }
     {
-      case user.game {
+      case session.game {
         Some(_game) -> todo as "convert player to bot"
         None -> Nil
       }
     }
   }
 
-  use user, conn, msg <- mist.websocket(request:, on_init:, on_close:)
+  use session, conn, msg <- mist.websocket(request:, on_init:, on_close:)
   case msg {
     mist.Text("ping") -> {
       let assert Ok(_) = mist.send_text_frame(conn, "pong")
-      actor.continue(user)
+      actor.continue(session)
     }
 
     mist.Text(buf) -> {
       use <- just.try(fn(_err) { panic as "cannot handling command" })
       use command <- result.try(json.decode_command(buf))
-      let user = handle_command(command, user)
-      Ok(actor.continue(user))
+      handle_command(session, command)
+      |> actor.continue
+      |> Ok
     }
 
     mist.Custom(event) -> {
       use <- just.try(fn(_err) { panic as "cannot handling event" })
       let buf = json.encode_event(event)
       use _ <- result.try(mist.send_text_frame(conn, buf))
-      Ok(actor.continue(user))
+      Ok(actor.continue(session))
     }
 
-    mist.Binary(_) | mist.Text(_) | mist.Custom(_) -> actor.continue(user)
+    mist.Binary(_) | mist.Text(_) | mist.Custom(_) -> actor.continue(session)
     mist.Closed | mist.Shutdown -> actor.Stop(process.Normal)
   }
 }
 
-fn handle_command(command: message.Command, user: User) -> User {
+fn handle_command(session: Session, command: message.Command) -> Session {
   case command {
     message.DashboardCommand(dashboard_command) -> {
-      let dashboard = user.dashboard
-      handle_dashboard_command(dashboard_command, dashboard, user)
+      let dashboard = session.dashboard
+      handle_dashboard_command(session, dashboard_command, dashboard)
     }
 
     message.LobbyCommand(lobby_command) -> {
-      use lobby <- just.try_some(user.lobby, fn() { user })
-      handle_lobby_command(lobby_command, lobby, user)
+      use lobby <- just.try_some(session.lobby, fn() { session })
+      handle_lobby_command(session, lobby_command, lobby)
     }
 
     message.GameCommand(game_command) -> {
-      use game <- just.try_some(user.game, fn() { user })
-      handle_game_command(game_command, game, user)
+      use game <- just.try_some(session.game, fn() { session })
+      handle_game_command(session, game_command, game)
     }
   }
 }
 
 fn handle_dashboard_command(
+  session: Session,
   command: message.DashboardCommand,
   dashboard: Dashboard,
-  user: User,
-) -> User {
+) -> Session {
   case command {
     message.UserCreateLobby(name) -> {
+      let user = {
+        use <- bool.guard(name |> string.is_empty, session.user)
+        session.user |> user.update_name(name)
+      }
       let lobby = dashboard.create_lobby(dashboard)
-      let assert Ok(_) = lobby.join(lobby, user.ctx, name)
-      User(..user, lobby: Some(lobby))
+      let assert Ok(_) = lobby.join(lobby, user)
+      Session(..session, user:, lobby: Some(lobby))
     }
 
     message.UserJoinLobby(id, name) -> {
-      use <- just.try(send_user_error(user, _))
+      let user = {
+        use <- bool.guard(name |> string.is_empty, session.user)
+        session.user |> user.update_name(name)
+      }
+      use <- just.try(send_error(session, _))
       use lobby <- result.try(dashboard |> dashboard.get_lobby(id))
-      use _ <- result.try(lobby.join(lobby, user.ctx, name))
-      Ok(User(..user, lobby: Some(lobby)))
+      use _ <- result.try(lobby.join(lobby, user))
+      Ok(Session(..session, user:, lobby: Some(lobby)))
     }
   }
 }
 
 fn handle_lobby_command(
+  session: Session,
   command: message.LobbyCommand,
   lobby: Lobby,
-  user: User,
-) -> User {
+) -> Session {
   case command {
     message.UserLeaveLobby -> {
-      lobby.leave(lobby, user.ctx)
-      User(..user, lobby: None)
+      lobby.leave(lobby, session.user)
+      Session(..session, lobby: None)
     }
 
     message.UserStartGame -> {
-      use <- just.try(send_user_error(user, _))
-      use game <- result.try(lobby.start_game(lobby, user.ctx))
-      Ok(User(..user, game: Some(game)))
+      use <- just.try(send_error(session, _))
+      use game <- result.try(lobby.start_game(lobby, session.user))
+      Ok(Session(..session, game: Some(game)))
     }
   }
 }
 
 fn handle_game_command(
+  _session: Session,
   _command: message.GameCommand,
   _game: Game,
-  _user: User,
-) -> User {
+) -> Session {
   todo
 }

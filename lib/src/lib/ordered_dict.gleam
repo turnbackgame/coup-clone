@@ -67,6 +67,13 @@ pub fn insert_back(
   )
 }
 
+pub fn update(dict: OrderedDict(k, v), key: k, value: v) -> OrderedDict(k, v) {
+  case dict |> get(key) {
+    Ok(_) -> OrderedDict(..dict, map: dict.map |> dict.insert(key, value))
+    Error(_) -> dict
+  }
+}
+
 pub fn delete(dict: OrderedDict(k, v), key: k) -> OrderedDict(k, v) {
   OrderedDict(
     dict.delete(dict.map, key),
