@@ -2,15 +2,12 @@
 # You typically do not need to edit this file
 
 packages = [
-  { name = "glanoid", version = "1.0.1", build_tools = ["gleam"], requirements = ["gleam_crypto", "gleam_stdlib"], otp_app = "glanoid", source = "hex", outer_checksum = "234440F3ED19BD65D166D31CA107991B14C6104AABFC0B75E3581358DCC7D0F3" },
-  { name = "gleam_crypto", version = "1.4.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleam_crypto", source = "hex", outer_checksum = "8AE56026B3E05EBB1F076778478A762E9EB62B31AEEB4285755452F397029D22" },
   { name = "gleam_json", version = "2.3.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleam_json", source = "hex", outer_checksum = "C55C5C2B318533A8072D221C5E06E5A75711C129E420DD1CE463342106012E5D" },
   { name = "gleam_stdlib", version = "0.52.0", build_tools = ["gleam"], requirements = [], otp_app = "gleam_stdlib", source = "hex", outer_checksum = "50703862DF26453B277688FFCDBE9DD4AC45B3BD9742C0B370DB62BC1629A07D" },
   { name = "gleeunit", version = "1.2.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleeunit", source = "hex", outer_checksum = "F7A7228925D3EE7D0813C922E062BFD6D7E9310F0BEE585D3A42F3307E3CFD13" },
 ]
 
 [requirements]
-glanoid = { version = ">= 1.0.1 and < 2.0.0" }
 gleam_json = { version = ">= 2.1.0 and < 3.0.0" }
 gleam_stdlib = { version = ">= 0.52.0 and < 2.0.0" }
 gleeunit = { version = ">= 1.0.0 and < 2.0.0" }
