@@ -25,10 +25,10 @@ fn to_list_keyed(dict: Dict(k, v)) -> List(#(k, v)) {
   |> result.map(fn(value) { #(key, value) })
 }
 
-pub fn from_list(list: List(v), fn_key: fn(v) -> k) -> Dict(k, v) {
+pub fn from_list(list: List(v), do: fn(v) -> k) -> Dict(k, v) {
   let #(map, rev_order) = {
     use #(map, rev_order), val <- list.fold(list, #(dict.new(), []))
-    let key = fn_key(val)
+    let key = do(val)
     #(dict.insert(map, key, val), [
       key,
       ..list.filter(rev_order, fn(k) { k != key })
@@ -83,29 +83,28 @@ pub fn first(dict: Dict(k, v)) -> Result(v, Nil) {
   get(dict, key)
 }
 
-pub fn map(dict: Dict(k, v), fn_map: fn(k, v) -> #(a, b)) -> Dict(a, b) {
+pub fn map(dict: Dict(k, v), do: fn(k, v) -> #(a, b)) -> Dict(a, b) {
   dict
   |> to_list_keyed
-  |> list.map(fn(pair) { fn_map(pair.0, pair.1) })
+  |> list.map(fn(pair) { do(pair.0, pair.1) })
   |> from_list_keyed
 }
 
-pub fn map_values(dict: Dict(k, v), fn_map: fn(v) -> a) -> Dict(k, a) {
+pub fn map_values(dict: Dict(k, v), do: fn(v) -> a) -> Dict(k, a) {
   dict
   |> to_list_keyed
-  |> list.map(fn(pair) { #(pair.0, fn_map(pair.1)) })
+  |> list.map(fn(pair) { #(pair.0, do(pair.1)) })
   |> from_list_keyed
 }
 
-pub fn each(dict: Dict(k, v), subject: s, do fn_each: fn(v) -> Nil) -> s {
+pub fn each(dict: Dict(k, v), do: fn(v) -> Nil) {
   fold(dict, Nil, fn(nil, _, v) {
-    fn_each(v)
+    do(v)
     nil
   })
-  subject
 }
 
-pub fn fold(dict: Dict(k, v), initial: acc, fn_map: fn(acc, k, v) -> acc) -> acc {
+pub fn fold(dict: Dict(k, v), initial: acc, do: fn(acc, k, v) -> acc) -> acc {
   use acc, #(key, val) <- list.fold(to_list_keyed(dict), initial)
-  fn_map(acc, key, val)
+  do(acc, key, val)
 }
